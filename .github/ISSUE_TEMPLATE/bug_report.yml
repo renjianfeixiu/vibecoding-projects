@@ -1,0 +1,38 @@
+name: 问题反馈
+description: 描述可重复出现的问题，便于定位和验证修复。
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 使用的版本
+      placeholder: v0.4.0-demo 或 commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 系统和浏览器
+      placeholder: Windows 11 / Chrome，或 macOS / Safari
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 尽量从“试用示例视频”开始；不要上传个人素材或访问密钥。
+      placeholder: "1. 导入示例视频\n2. …\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或错误信息（可选）
+      description: 可粘贴浏览器 Console 的相关错误。

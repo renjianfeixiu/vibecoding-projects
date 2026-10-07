@@ -1,0 +1,33 @@
+{
+  "name": "frameflow-demo",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5178 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5178 --strictPort",
+    "test": "node scripts/test.mjs",
+    "format": "prettier --write src tests scripts docs .github README.md CONTRIBUTING.md CHANGELOG.md package.json package-lock.json tsconfig.json vite.config.ts index.html",
+    "start": "vite --host 127.0.0.1 --port 5178 --strictPort --open",
+    "format:check": "prettier --check src tests scripts docs .github README.md CONTRIBUTING.md CHANGELOG.md package.json package-lock.json tsconfig.json vite.config.ts index.html",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "lucide-react": "0.468.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.6.0",
+    "prettier": "3.6.2",
+    "typescript": "5.8.3",
+    "vite": "7.3.7"
+  }
+}

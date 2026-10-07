@@ -1,0 +1,70 @@
+# 插件扩展
+
+核心数据定义在 `src/core/types.ts`，注册表在 `src/plugins/registry.ts`。插件和 UI 共享工程数据；不允许绕过工程状态直接改 DOM 或吞掉人工标注。
+
+## 审查插件
+
+实现 `AnnotationAuditPlugin`：`id / name / description / requiresPixels / review(request)`，在 `auditPlugins` 注册。请求包含完整工程、帧读取器、取消信号和进度；`requiresPixels: true` 时由调用方读取真实素材，可供后续多模态服务使用。当前 `local-quality` 为元数据一致性检查，不请求模型，也不宣称语义识别。
+
+返回 `AuditFinding[]`：稳定 ID、问题类型、轨迹、标注帧区间、说明、人工处理状态。插件只读，不修改框或确认候选。五类规则：已有标注间的缺帧（拒绝帧阻断）、按帧间隔归一并参考典型速度的位置跳变、短区间面积比异常、低匹配相关性、未确认候选。所有发现都是待核对疑点，不是错误判决。
+
+报告保存生成时的工程快照引用，媒体映射、标注、类别或轨迹变化后失效；框工具参数变化不使报告失效。处理审查项只修改报告。有效报告可独立下载或附入 ZIP，失效报告不随新工程导出。导出配置跨第四步保留；审查可以跳过。报告审查整个工程，而格式主体仍按「仅已确认」筛选，数量可能不同。
+
+后续模型插件应返回画面可验证的证据、保守的不确定性说明，并遵循取消和只读协议。真正语义审查需独立人工真值评估，不用模型自报置信度替代质量验收。
+
+## AI 关键帧标注插件
+
+### 建议点计划
+
+`core/keyframes.ts` 的 `keyframePlan(project, trackId)` 统一时间线和当前本地 AI 引擎的点位。保留已确认人工框，加入首尾点，再均匀补点使相邻人工点间隔 ≤ `settings.manualInterval`；默认 3 秒，以任务标注帧计算。质量模式额外参考已有非人工候选：相关性低于 0.72 或已被人工拒绝，每个 AI 间隔窗口选一个最需要核对的点，再重新兜底间隔。该策略只定位已出现的质量信号，不推断未知对象或场景变化。
+
+`manualSuggestions` 不写入 Annotation；实际人工框才完成对应点，AI 确认和补帧不会消除人工待办。`aiPoints` 保留计划位置、真实人工参考帧、已生成状态及可生成状态。模板插件通过 `plannedAICandidates` 读取同一位置，排除人工点；有真实人工锚点才能调用图像匹配，拒绝帧阻断到下一实际人工锚点的传播。当前安排必做建议点，不因未完成所有人工点锁住整个编辑/导出流程。
+
+配置保存在工程/导出清单，建议点从工程重算，避免保存过期副本。旧工程缺少两个新设置仍可读取；切换目标后按该目标的人工框及质量信号重算。新推荐方法可替换这个独立规划模块，媒体/标注插件与画布无需维护另一套帧号。
+
+实现 `AnnotationAssistPlugin`：`id / name / description / generate(request)`。请求提供工程、当前轨迹、原尺寸像素读取器、取消信号和进度回调。返回 `Annotation[]`，使用 `source: 'assist'`、`review: 'pending'`；需要可靠锚点，不能自动把候选设为人工真值。
+
+接入流程：
+
+1. 新建 `src/plugins/your-assistant.ts`，实现上述接口。
+2. 在 `registry.ts` 导入并加入 `assistPlugins` 初始列表，或调用 `.register(plugin)`；辅助方式选择器会自动显示。
+3. 如果调用模型服务，在后端/本地服务配置密钥。客户端只请求同一来源的 API；从 `reader.read(frame)` 生成图像输入，返回统一像素坐标和对象 ID。
+4. 校验服务返回值：类别 ID、框边界、帧号、取消信号、覆盖人工框规则。用独立真值集验证，不用模型自报分数代替准确率。
+
+本地模板插件使用人工框中心区域的 RGB 样本，以相关性、颜色误差和位移约束搜索，并根据上一段位移预测搜索中心。UI 显示的是原始模板相关性；它没有经过概率校准。返回值可能漂移，始终等待复核。
+
+## 补帧插件
+
+实现 `FrameFillPlugin`：`id / name / description / async fill(request)`。请求复用 `AssistRequest`，包含工程、轨迹、像素读取器、取消信号和进度回调。返回待审核缺失帧候选；光流使用 `source: 'tracked'`，插帧使用 `source: 'interpolated'`。锚点仅限已确认人工/辅助框，旧派生框不能成为新锚点。
+
+新算法在 `fillPlugins` 注册，自动出现在第二步「补帧方式」选择器。默认 `pyramidal-lk`，可选 `linear`。两者共用异步任务、进度、取消和完成后原子写入机制；取消不会写入半成品。SAM 系列可以沿用异步接口接入服务，不必改变工作流。
+
+光流实现：图像长边最多 640 像素，三层灰度金字塔；框中心检测 Shi–Tomasi 角点，LK 前后向误差筛选，鲁棒中值位移与轻微尺度估计；原人工模板校准位置；相邻可靠锚点双向跟踪，仅融合位置一致的结果。低相关性或拒绝帧停止当前方向，不凭空跨越。它仍不负责复杂遮挡后的对象重识别。
+
+动态录制独立于补帧插件：`src/core/dynamic.ts` 按所有标注帧重采样鼠标轨迹。`media.fps` 是任务标注帧率，`media.sourceFps` 保存原视频帧率；旧工程缺少后者时沿用 `media.fps`。帧读取器通过 `sourceFrameIndex` / `frameSampleTime` 将标注帧映射到原视频，插件无需自行换算。AI 的 `assistInterval` 单位是标注帧，不控制任务帧率。`settings.samplingFps` 与导出器的 `sampledOnly` 仅保留旧接口兼容；当前界面始终导出所选标注时间线，不再次抽样。
+
+## 导出适配器
+
+实现 `ExportAdapter`：`id / name / extension / description / supportsImages / group / export(project, options)`，返回 `[{ path, text }]`。可选 `imagePath(frame)` 声明图片目录、`validate(project, options)` 检查格式前置条件。注册后自动出现对应分组，并可搜索。
+
+- 路径必须是安全相对路径，避免 `..` 和绝对路径。
+- 使用 `exportAnnotations` 统一过滤已拒绝和待复核数据。
+- 不修改工程。内部使用 0-based 帧号和原图像素，各格式自行换算。
+- `frameflow-manifest.json` 保留标准格式表达不了的来源/审核信息。
+- 若图片布局有新要求，只需声明适配器的 `imagePath`，UI 不维护格式 ID 分支；矩形框格式之外先增加真实几何类型，再增加相应导出器。
+
+## 标注导入适配器
+
+实现 `AnnotationImportAdapter`：`id / name / accepts(files) / read(files, media)`。输入是经过大小限制的 `ImportTextFile[]`，返回 `ImportedBox[]`：`frame / label / box / trackKey?`。在 `importPlugins` 注册后参与自动识别，不增加工作流步骤。
+
+`core/import.ts` 负责 ZIP 解包、FrameFlow 工程/清单优先识别、与媒体配对、类别和轨迹映射、坐标边界与帧号校验。所有格式进入统一播放器，不能直接操作画布。导入是一次可撤销的整体替换；返回首步再次进入不会重复覆盖后续人工编辑。
+
+20 种帧序导出 ZIP 通过原尺寸清单回导，保留已导出的帧号、轨迹和来源。原生解析器覆盖 COCO、CVAT XML、YOLO / Darknet、VOC、LabelMe JSON、MOT、FrameFlow CSV；原生 XML 使用浏览器 DOMParser。原生无身份的图像框独立保留，只有文件明确声明的 ID 才建立跨帧轨迹。CVAT 稀疏轨迹采用文件的线性关键帧语义展开，不能将其宣称为光流推断。
+
+新增导入格式应明确帧命名、坐标原点、类别、轨迹 ID 和缺失帧语义；用导出→回导、错误媒体拒绝与多目标案例验收。第三方 ZIP 没有 FrameFlow 清单时依赖对应原生解析器。视频 FPS 仍由用户确认；清单有 FPS 时沿用其值。
+
+## 数据约束
+
+同一轨迹同一帧唯一；人工修改优先；辅助不能覆盖人工；拒绝帧保留为补帧屏障；重新生成某轨迹辅助会清除旧非人工结果；切换补帧方式并重新运行会替换旧补帧候选；工程验证器兼容 0.1 的线性插帧来源并检查尺寸、帧、轨迹引用和审核状态。
+
+前端只针对恒定帧率做近似帧定位。正式后端应以帧 PTS 表为依据、任务分块运行、持久化任务状态，并使用 CPU/GPU 能力匹配的模型服务。

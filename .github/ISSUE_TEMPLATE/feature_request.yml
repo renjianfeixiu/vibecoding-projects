@@ -1,0 +1,25 @@
+name: 功能建议
+description: 从用户遇到的具体困难出发，再说明如何验收。
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 哪个操作让你遇到困难？
+      placeholder: 在第二步发现类别拼写错了，需要返回第一步才能处理。
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 希望完成后的行为
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 怎样证明做到了？
+      placeholder: 第二步重命名类别后，侧栏与导出文件同步更新，原有框与轨迹 ID 保留。
+    validations:
+      required: true
