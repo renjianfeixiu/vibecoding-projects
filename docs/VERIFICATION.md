@@ -90,3 +90,4 @@
 - `npm start -- --port 5189` 成功启动；首页、`src/main.tsx`、`src/App.tsx` 均返回 HTTP 200。关闭的仅为本次测试服务，主会话的 5178 服务保留。
 - 新增共用 `npm start`、Windows 快捷入口、显式测试文件列表；GitHub Actions 配置 Mac、Windows、Linux 安装、测试、构建和真实启动检查。CI 运行结果以对应 Actions 页面和 Release 记录为准。
 - 旧仓库 6 个文件的原 SHA 与下载字节一致，另存本地备份包；原提交 `095417b886279d3a85e6946705026efea52b9184` 保存在 `codex/archive-before-frameflow-20261007`。替换操作保留原提交历史，不强制推送。
+- 首轮 CI 中 Mac 与 Linux 全部通过；Windows 的测试、构建、启动通过，但默认检出的 CRLF 导致 62 个文本文件的格式检查失败。新增 `.gitattributes` 统一源码 LF、Windows `.cmd` CRLF 后重新检查，最终结果见发布记录。
