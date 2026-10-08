@@ -8,7 +8,7 @@
 
 需要先安装 **Git** 和 **Node.js ≥22.18**，推荐 Node 24 LTS。Node 安装包自带 npm：[Node.js 下载](https://nodejs.org/en/download)、[Git 下载](https://git-scm.com/downloads)。浏览器推荐当前 Chrome、Edge 或 Safari。
 
-Mac 终端、Windows PowerShell 或命令提示符都可以执行：
+Mac 终端可以执行：
 
 ```sh
 git clone https://github.com/renjianfeixiu/vibecoding-projects.git
@@ -17,9 +17,34 @@ npm ci
 npm start
 ```
 
-浏览器将打开 `http://127.0.0.1:5178/`。终端保持运行，用 `Ctrl+C` 停止。Windows PowerShell 若禁止执行 `npm.ps1`，改用 `npm.cmd ci` 和 `npm.cmd start`，无需修改系统执行策略。
+Windows PowerShell 或命令提示符使用以下命令。显式调用 `npm.cmd`，无需修改 PowerShell 执行策略：
 
-想固定使用这次发布的版本，可在安装前运行 `git switch --detach v0.4.0-demo`。日后回到最新版用 `git switch main`，确认本地改动已保存后再 `git pull --ff-only`。
+```powershell
+git clone --branch main https://github.com/renjianfeixiu/vibecoding-projects.git
+cd vibecoding-projects
+npm.cmd ci
+npm.cmd start
+```
+
+尚未安装 Git 和 Node 的 Windows 用户，可先执行以下安装命令，完成后关闭并重新打开终端，再执行上面的下载和启动命令：
+
+```powershell
+winget install --id Git.Git -e --source winget
+winget install --id OpenJS.NodeJS.LTS -e --source winget
+```
+
+若系统没有 `winget`，使用上面的官方下载链接安装。浏览器将打开 `http://127.0.0.1:5178/`。终端保持运行，用 `Ctrl+C` 停止。
+
+想固定使用这次发布的版本，可在安装前运行 `git switch --detach v0.6.0-github`。日后回到最新版用 `git switch main`，确认本地改动已保存后再 `git pull --ff-only`。
+
+Windows 用户后续更新，在项目目录执行以下命令；若服务正在运行，先按 `Ctrl+C` 停止：
+
+```powershell
+git switch main
+git pull --ff-only
+npm.cmd ci
+npm.cmd start
+```
 
 下载后也可以双击 Mac 的 `启动帧序.command` 或 Windows 的 `启动帧序.cmd`。它们会检查 Node，首次安装依赖并启动；首次安装需要网络。两种入口使用同一份前端源码，不需要分成 Mac/Windows 两个应用版本。
 
@@ -43,13 +68,13 @@ npm run preview
 
 ## 项目安排
 
-- [产品迭代路线](docs/ROADMAP.md)：v0.5 操作完善 → v0.6 数据可靠 → v0.7 模型辅助 → v1.0 小范围稳定使用。
+- [产品迭代路线](docs/ROADMAP.md)：已完成操作与顺序复核修订，后续验证数据可靠性、模型辅助与真实场景试用。
 - [GitHub 分类与工作流](docs/GITHUB_WORKFLOW.md)：Issue、标签、里程碑、分支、PR 和 Release 怎么配合。
 - [参与开发](CONTRIBUTING.md) · [版本记录](CHANGELOG.md) · [跨平台检查](https://github.com/renjianfeixiu/vibecoding-projects/actions/workflows/ci.yml)。
 
-当前发布版本来自已验收的 `v0.4.0-demo`。第二步类别重命名、AI 批量作用范围等尚待完善；这些是下一阶段任务，不把路线图写成已实现功能。
+当前版本为 **v0.6.0**：包含第二步类别与对象管理、多对象批处理、同一帧同类别连续画框，以及「人工复核 → AI 生成与复核 → 补帧与复核」的顺序流程。最新应用源码与本地已验收的 `0cecaef` 保持一致，保留 GitHub 仓库已有的跨平台启动、测试及项目管理文件。
 
-![帧序标注工作台](docs/images/workspace.png)
+![帧序标注工作台（v0.4 发布截图，最新操作流程见下文）](docs/images/workspace.png)
 
 ## 先体验一个完整任务
 
@@ -109,19 +134,13 @@ npm run format # 格式化源码
 
 ## 版本与回滚
 
-GitHub `main` 当前承载帧序源码。首个发布标签为 `v0.4.0-demo`，应用源码对应原本地快照 `8296d61`；发布时增加了启动、跨平台测试及项目管理文件。详见 [版本记录](CHANGELOG.md)。
+GitHub `main` 当前承载 v0.6.0 源码，本次发布标签为 `v0.6.0-github`，包含最新功能与跨平台工具。首个发布标签 `v0.4.0-demo` 保留。详见 [版本记录](CHANGELOG.md)。
 
 仓库原内容已保存在 `codex/archive-before-frameflow-20261007` 分支；本次在已有历史上提交替换，不使用强制推送。
 
-- `v0.0-outline`：产品大纲。
-- `v0.1.0-demo`：经过验证的前端 demo。
-- `v0.2.0-demo`：连续全帧动态标注、可选光流/插帧、20 个导出适配器、标注回导预览与简洁页面。
-- `v0.2.1-demo`：任务标注帧率、原视频帧映射与一致导出，名称统一为「AI 关键帧标注」。
-- `v0.3.0-demo`：可选审查、报告与修正流程、审查插件接口和软著申请大纲。
-- `v0.4.0-demo`：类别删除与迁移、时间线建议点、人工最大间隔及统一 AI 点位计划。
-- `v0.5.0-demo`：第二步类别/对象管理、多对象批处理、安全覆盖、范围复核、四角缩放调整、复制粘贴、统一坐标应用、任务替换与保存保护。
-- `v0.6.0-demo`：同帧连续画框自动创建同类独立对象；新框类别独立选择；人工 → AI → 补帧顺序复核、任务前置校验、编辑回退与工程阶段恢复。
+- `v0.4.0-demo`：类别删除与迁移、时间线建议点、人工最大间隔及统一 AI 点位计划，首个跨平台发布快照。
+- `v0.6.0-github`：类别/对象管理、多对象批处理、安全覆盖、四角调整、复制粘贴、自动保存保护；同帧连续画框创建同类独立对象；人工 → AI → 补帧顺序复核、任务前置校验、编辑回退与工程阶段恢复。
 
-只查看发布版：`git switch --detach v0.4.0-demo`；回到最新版：`git switch main`。保留历史并撤销某次改动可使用 `git revert <提交号>`。
+只查看本次发布版：`git switch --detach v0.6.0-github`；回到最新版：`git switch main`。保留历史并撤销某次改动可使用 `git revert <提交号>`。
 
 [产品大纲](docs/PRODUCT_OUTLINE.md) · [可用性修订](docs/USABILITY_AUDIT.md) · [插件说明](docs/PLUGINS.md) · [验收记录](docs/VERIFICATION.md) · [软著申请大纲](docs/SOFTWARE_COPYRIGHT_OUTLINE.md)

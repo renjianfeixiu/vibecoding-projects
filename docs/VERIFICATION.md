@@ -129,3 +129,13 @@
 - 证据在忽略的 `artifacts/`：`v0.6-tests.log`、`v0.6-build.log`、`v0.6-workspace.jpg`、`v0.6-review-mobile.jpg`、`v0.6-production-multiple.jpg`、`v0.6-export-check.json`、`exports/v0.6-final-coco.zip`。
 
 本次界面闭环使用内置动画，算法检查使用合成像素，未重新上传真实视频，也未开展真实数据集精度评测。上述通过不表示不存在其他问题，亦不证明语义标注正确率；候选分数仍为匹配相关性。
+
+## v0.6.0：GitHub 同步与跨平台启动（2026-10-08）
+
+- 在独立目录基于 GitHub `main` 的 `86db480` 合入本地 v0.5、v0.6 功能提交。保留远程原历史、旧仓库归档分支、Windows `.cmd`、Mac `.command`、显式测试入口和跨平台 CI。
+- `src`、`tests`、`public`、`package-lock.json` 与本地已验收的 `0cecaef` 一致；保留 GitHub 的 `npm start`、`smoke`、格式检查脚本。应用版本为 0.6.0，本次发布标签为 `v0.6.0-github`。
+- 使用 Node 24.17.0 在新目录执行 `npm ci --no-audit --no-fund`，锁定依赖安装成功；`npm test` 81 项全部通过，TypeScript 与生产构建通过。
+- 生产构建仍为 `index-C6yVGOG0.js` 和 `index-DeD8qnJL.css`，应用源码没有因同步产生额外修改。
+- `npm run smoke` 实际启动 `npm start`，在临时端口 55688 检查首页与应用入口通过；测试服务随后关闭，原有 5178 服务保留。
+- README 补齐 Windows `npm.cmd ci`、`npm.cmd start`、后续 `git pull --ff-only` 更新步骤，以及 Git/Node 的安装命令。版本记录和路线图同步已实现功能，保留真实模型、视频时间戳和外部格式验证的边界。
+- 全仓库格式检查与 `git diff --check` 通过。Windows、Mac、Linux 的安装/测试/构建/启动结果以本次提交的 [GitHub Actions](https://github.com/renjianfeixiu/vibecoding-projects/actions/workflows/ci.yml) 为准；CI 启动检查不等同于真实 Windows 浏览器视频操作验收。
