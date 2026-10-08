@@ -23,6 +23,10 @@ export interface Track {
   id: number;
   labelId: number;
   name: string;
+  startFrame?: number;
+  endFrame?: number;
+  locked?: boolean;
+  hidden?: boolean;
 }
 export interface MediaInfo {
   kind: "demo" | "video" | "image";
@@ -64,6 +68,7 @@ export interface FrameReader {
 export interface AssistRequest {
   project: Project;
   trackId: number;
+  replacePending?: boolean;
   reader: FrameReader;
   signal: AbortSignal;
   onProgress: (current: number, total: number) => void;

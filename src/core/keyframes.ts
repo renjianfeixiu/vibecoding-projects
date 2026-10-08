@@ -1,5 +1,7 @@
 import type { Annotation, Project } from "./types.ts";
-import { frameCount, LIMIT_FRAMES } from "./project.ts";
+import { LIMIT_FRAMES } from "./project.ts";
+
+import { trackBounds } from "./workflow.ts";
 
 export const MATCH_REVIEW_THRESHOLD = 0.72;
 export type SuggestionReason =
@@ -41,7 +43,7 @@ export function manualInterval(project: Project) {
   );
 }
 export function keyframePlan(project: Project, trackId: number): KeyframePlan {
-  const last = frameCount(project.media) - 1;
+  const { start, end: last } = trackBounds(project, trackId);
   const interval = manualInterval(project);
   const aiInterval = project.settings.assistInterval;
   const entries = project.annotations.filter((a) => a.trackId === trackId);
@@ -52,7 +54,7 @@ export function keyframePlan(project: Project, trackId: number): KeyframePlan {
     .sort((a, b) => a - b);
   const actualManual = new Set(anchors);
   const points = new Map<number, SuggestionReason>([
-    [0, "start"],
+    [start, "start"],
     [last, "end"],
   ]);
   for (const frame of anchors) points.set(frame, "interval");
@@ -142,6 +144,22 @@ export function keyframePlan(project: Project, trackId: number): KeyframePlan {
   };
 }
 
-export function plannedAICandidates(project: Project, trackId: number) {
-  return keyframePlan(project, trackId).aiPoints.filter((point) => point.ready);
+export function plannedAICandidates(
+  project: Project,
+  trackId: number,
+  replacePending = true,
+) {
+  const existing = new Map(
+    project.annotations
+      .filter((a) => a.trackId === trackId)
+      .map((a) => [a.frame, a]),
+  );
+  return keyframePlan(project, trackId).aiPoints.filter((point) => {
+    const a = existing.get(point.frame);
+    return (
+      point.ready &&
+      (!a ||
+        (replacePending && a.review === "pending" && a.source !== "manual"))
+    );
+  });
 }

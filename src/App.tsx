@@ -29,6 +29,7 @@ import {
   LIMIT_FRAMES,
   parseProject,
   setAnnotations,
+  reviewAnnotation,
   timeToFrame,
 } from "./core/project.ts";
 import { useProject, savedProject } from "./hooks/useProject.ts";
@@ -46,7 +47,20 @@ import {
 } from "./plugins/registry.ts";
 import { Brand } from "./components/Icon.tsx";
 import { ImportStep } from "./components/ImportStep.tsx";
-import { Workspace, manualAnnotation } from "./components/Workspace.tsx";
+import { Workspace } from "./components/Workspace.tsx";
+import { Modal } from "./components/Modal.tsx";
+import {
+  addTrack,
+  copyFrameBox,
+  manualAnnotation,
+  mergeGenerated,
+  scopedTrackIds,
+  trackBounds,
+  SCOPE_NAMES,
+} from "./core/workflow.ts";
+import type { OperationScope } from "./core/workflow.ts";
+import { runAnnotationBatch } from "./core/batch.ts";
+import type { TrackJobResult } from "./core/batch.ts";
 import { ReviewStep } from "./components/ReviewStep.tsx";
 import type { ExportSettings } from "./components/ExportStep.tsx";
 import {
@@ -74,6 +88,15 @@ export default function App() {
     ? trackId
     : (project?.tracks[0].id ?? 1);
   const [assistId, setAssistId] = useState("local-template");
+  const [scope, setScope] = useState<OperationScope>("all"),
+    [replacePending, setReplacePending] = useState(false);
+  const [jobResult, setJobResult] = useState<TrackJobResult[] | null>(null);
+  const [copiedBox, setCopiedBox] = useState<Box | null>(null);
+  const [replacement, setReplacement] = useState<{
+    message: string;
+    run: () => void;
+    dispose?: () => void;
+  } | null>(null);
   const [annotationImport, setAnnotationImport] =
     useState<AnnotationImportBundle | null>(null);
   const appliedImport = useRef<{
@@ -99,6 +122,10 @@ export default function App() {
   );
   useEffect(() => {
     setAudit(null);
+    setJobResult(null);
+    setScope("all");
+    setReplacePending(false);
+    setCopiedBox(null);
     setAuditSkipped(false);
     setExportSettings({ format: "coco", confirmedOnly: true, images: false });
   }, [project?.id]);
@@ -113,6 +140,7 @@ export default function App() {
   const recording = useRef(false),
     pointer = useRef<{ x: number; y: number } | null>(null),
     lastSample = useRef<MouseSample | null>(null);
+  const playbackAttempt = useRef(0);
   const playbackClock = useRef<{
     origin: number;
     startTime: number;
@@ -134,7 +162,7 @@ export default function App() {
         )
       : frameRef.current;
   }, [current]);
-  const allBusy = !!busy || exportBusy || loading;
+  const allBusy = !!busy || exportBusy || loading || !!replacement;
   const notify = useCallback((message: string) => {
     setToast(message);
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
@@ -146,6 +174,7 @@ export default function App() {
     lastSample.current = null;
   }, []);
   const pause = useCallback(() => {
+    playbackAttempt.current++;
     if (playingRef.current) dynamicSampler.current(taskFrameNow());
     playingRef.current = false;
     setPlaying(false);
@@ -161,13 +190,25 @@ export default function App() {
       if (!p) return;
       const next = Math.max(
         0,
-        Math.min(frameCount(p.media) - 1, Math.round(value)),
+        Math.min(
+          frameCount(p.media) - 1,
+          Number.isFinite(value) ? Math.round(value) : frameRef.current,
+        ),
       );
       frameRef.current = next;
       setFrameState(next);
     },
     [pause, current],
   );
+  const requestReplacement = (
+    message: string,
+    run: () => void,
+    dispose?: () => void,
+  ) => {
+    if (current.current?.annotations.length)
+      setReplacement({ message, run, dispose });
+    else run();
+  };
   const replaceAsset = (next: MediaAsset) => {
     pause();
     releaseAsset(assetRef.current);
@@ -201,36 +242,53 @@ export default function App() {
         Math.abs(existing.media.duration - next.info.duration) < 0.1 &&
         (existing.media.fileSize === undefined ||
           existing.media.fileSize === file.size);
-      replaceAsset(next);
-      if (canRestore) notify("原素材已重新关联，标注已恢复。");
-      else {
-        initialize(createProject(next.info));
-        setTrackId(1);
-      }
-      frameRef.current = 0;
-      setFrameState(0);
-      setTool("draw");
-      setStep(1);
-      if (next.info.kind === "video" && !canRestore)
-        notify("视频已读取。请设置标注帧率，并确认原视频帧率。");
+      const apply = () => {
+        replaceAsset(next);
+        if (canRestore) notify("原素材已重新关联，标注已恢复。");
+        else {
+          initialize(createProject(next.info));
+          if (appliedImport.current?.bundle === annotationImport)
+            setAnnotationImport(null);
+          appliedImport.current = null;
+          setTrackId(1);
+        }
+        frameRef.current = 0;
+        setFrameState(0);
+        setTool("draw");
+        setStep(1);
+        if (next.info.kind === "video" && !canRestore)
+          notify("视频已读取。请设置标注帧率，并确认原视频帧率。");
+      };
+      if (canRestore) apply();
+      else
+        requestReplacement(
+          `更换为「${next.info.fileName}」会进入新的标注任务。`,
+          apply,
+          () => releaseAsset(next),
+        );
     } catch (error) {
       notify(error instanceof Error ? error.message : "导入失败。");
     } finally {
       setLoading(false);
     }
   };
-  const useDemo = () => {
-    replaceAsset(demoAsset());
-    initialize(createProject());
-    setTrackId(1);
-    frameRef.current = 0;
-    setFrameState(0);
-    setTool("draw");
-    setStep(1);
-  };
-  const restore = (p: Project) => {
+  const useDemo = () =>
+    requestReplacement("试用示例视频会进入新的标注任务。", () => {
+      replaceAsset(demoAsset());
+      initialize(createProject());
+      if (appliedImport.current?.bundle === annotationImport)
+        setAnnotationImport(null);
+      appliedImport.current = null;
+      setTrackId(1);
+      frameRef.current = 0;
+      setFrameState(0);
+      setTool("draw");
+      setStep(1);
+    });
+  const applyRestore = (p: Project) => {
     pause();
     setAnnotationImport(null);
+    appliedImport.current = null;
     releaseAsset(assetRef.current);
     assetRef.current = null;
     setAsset(null);
@@ -248,6 +306,11 @@ export default function App() {
       setStep(1);
       notify(`工程已恢复，请重新选择原素材：${p.media.fileName}`);
     }
+  };
+  const restore = (p: Project) => {
+    requestReplacement(`打开「${p.name}」会替换当前工作台。`, () =>
+      applyRestore(p),
+    );
   };
   const restoreFile = async (file: File) => {
     try {
@@ -276,6 +339,9 @@ export default function App() {
   const begin = () => {
     if (!current.current || !assetRef.current || allBusy) return;
     try {
+      if (!current.current.name.trim()) throw new Error("请先设置任务名称。");
+      if (frameCount(current.current.media) > LIMIT_FRAMES)
+        throw new Error("任务超过 18,000 个标注帧，请降低帧切分帧率后再进入。");
       if (
         annotationImport &&
         (appliedImport.current?.bundle !== annotationImport ||
@@ -299,14 +365,52 @@ export default function App() {
       notify(error instanceof Error ? error.message : "无法关联此标注文件。");
     }
   };
-  const manual = (box: Box) => {
-    update((p) => manualAnnotation(p, activeTrackId, frameRef.current, box));
+  const manual = (box: Box, id = activeTrackId) => {
+    try {
+      update((p) => manualAnnotation(p, id, frameRef.current, box));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "无法修改此标注。");
+    }
+  };
+  const copyBox = () => {
+    if (!current.current) return;
+    const selected = copyFrameBox(
+      current.current,
+      activeTrackId,
+      frameRef.current,
+    );
+    if (!selected) return;
+    setCopiedBox({ ...selected.box });
+    notify("当前框已复制，可切换帧或对象后粘贴。");
+  };
+  const pasteBox = () => {
+    if (copiedBox) manual(copiedBox);
+  };
+  const createTrack = () => {
+    if (!current.current || allBusy || playingRef.current) return;
+    const labelId =
+      current.current.tracks.find((t) => t.id === activeTrackId)?.labelId ??
+      current.current.labels[0].id;
+    const next = addTrack(current.current, labelId, frameRef.current);
+    update(() => next);
+    setTrackId(next.tracks.at(-1)!.id);
+    setTool("draw");
+    notify("新对象已创建，请在画面上画框。");
   };
   const sampleDynamic = useCallback(
     (nextFrame: number) => {
       const p = current.current,
         point = pointer.current;
       if (!p || !point || !recording.current || !playingRef.current) return;
+      const track = p.tracks.find((t) => t.id === activeTrackId);
+      const bounds = trackBounds(p, activeTrackId);
+      if (
+        track?.locked ||
+        track?.hidden ||
+        nextFrame < bounds.start ||
+        nextFrame > bounds.end
+      )
+        return;
       const sample = { frame: nextFrame, ...point };
       if (
         lastSample.current?.frame === nextFrame &&
@@ -328,16 +432,9 @@ export default function App() {
   dynamicSampler.current = sampleDynamic;
   const startDynamic = () => {
     if (!playingRef.current) return;
+    const p = current.current;
+    if (!p || p.tracks.find((t) => t.id === activeTrackId)?.locked) return;
     checkpoint();
-    update(
-      (p) => ({
-        ...p,
-        annotations: p.annotations.filter(
-          (a) => a.trackId !== activeTrackId || a.source === "manual",
-        ),
-      }),
-      false,
-    );
     recording.current = true;
     lastSample.current = null;
   };
@@ -359,13 +456,19 @@ export default function App() {
       if (assetRef.current.element instanceof HTMLVideoElement)
         assetRef.current.element.currentTime = 0;
     }
+    const attempt = ++playbackAttempt.current;
     try {
       if (assetRef.current.element instanceof HTMLVideoElement) {
         const video = assetRef.current.element;
         await seekVideo(video, frameRef.current / p.media.fps);
         video.playbackRate = speed;
         await video.play();
+        if (attempt !== playbackAttempt.current) {
+          video.pause();
+          return;
+        }
       }
+      if (attempt !== playbackAttempt.current) return;
       playingRef.current = true;
       setPlaying(true);
     } catch {
@@ -414,39 +517,91 @@ export default function App() {
     sampleDynamic,
     pause,
   ]);
-  // Keyboard shortcuts only operate the workspace and never intercept form editing.
+  // Form controls and dialogs retain their normal editing behavior.
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       if (
-        step !== 2 ||
         allBusy ||
         !project ||
+        document.querySelector("dialog[open]") ||
         (event.target instanceof HTMLElement &&
-          (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(
-            event.target.tagName,
-          ) ||
+          (["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName) ||
             event.target.isContentEditable))
       )
         return;
-      if (event.code === "Space") {
+      const command = event.metaKey || event.ctrlKey,
+        key = event.key.toLowerCase();
+      if (command && key === "s") {
         event.preventDefault();
-        void togglePlay();
+        backup();
+        return;
       }
-      if (!playing && event.key === "ArrowLeft") {
+      if (!playing && command && (key === "z" || key === "y")) {
         event.preventDefault();
-        setFrame(frameRef.current - 1);
+        key === "y" || event.shiftKey ? state.redo() : state.undo();
+        return;
       }
-      if (!playing && event.key === "ArrowRight") {
-        event.preventDefault();
-        setFrame(frameRef.current + 1);
+      if (step !== 2) return;
+      if (event.key === "Escape") {
+        pause();
+        return;
       }
       if (
-        !playing &&
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLowerCase() === "z"
+        event.code === "Space" &&
+        !(event.target instanceof HTMLButtonElement)
       ) {
         event.preventDefault();
-        event.shiftKey ? state.redo() : state.undo();
+        void togglePlay();
+        return;
+      }
+      if (playing) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        setFrame(
+          frameRef.current +
+            (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1),
+        );
+        return;
+      }
+      const selected = copyFrameBox(project, activeTrackId, frameRef.current);
+      if (command && key === "c" && selected) {
+        event.preventDefault();
+        copyBox();
+        return;
+      }
+      if (command && key === "v" && copiedBox) {
+        event.preventDefault();
+        pasteBox();
+        return;
+      }
+      if (command) return;
+      if (key === "b") setTool("draw");
+      if (key === "v") setTool("move");
+      if (key === "m") setTool("dynamic");
+      if (key === "n") createTrack();
+      if ((event.key === "Delete" || event.key === "Backspace") && selected) {
+        event.preventDefault();
+        try {
+          update((p) =>
+            reviewAnnotation(p, activeTrackId, frameRef.current, "rejected"),
+          );
+        } catch (e) {
+          notify(e instanceof Error ? e.message : "无法删除。");
+        }
+      }
+      if (
+        key === "enter" &&
+        selected?.review === "pending" &&
+        !(event.target instanceof HTMLButtonElement)
+      ) {
+        try {
+          event.preventDefault();
+          update((p) =>
+            reviewAnnotation(p, activeTrackId, frameRef.current, "confirmed"),
+          );
+        } catch (e) {
+          notify(e instanceof Error ? e.message : "无法确认。");
+        }
       }
     };
     window.addEventListener("keydown", handle);
@@ -541,52 +696,73 @@ export default function App() {
         : null,
     );
   };
-  const assist = async () => {
+  const runJob = async (mode: "assist" | "fill") => {
     if (!project || !asset || allBusy) return;
     pause();
-    setBusy("生成 AI 关键帧");
+    const plugin =
+      mode === "assist" ? assistPlugins.get(assistId) : fillPlugins.get(fillId);
+    const title = mode === "assist" ? "生成 AI 关键帧" : plugin.name;
+    setBusy(title);
     setProgress(0);
     const ctrl = new AbortController();
     controller.current = ctrl;
     let dispose = () => {};
     try {
-      const handle = await makeFrameReader(asset, project, ctrl.signal);
-      dispose = handle.dispose;
-      const results = await assistPlugins.get(assistId).generate({
+      const handle =
+        mode === "fill" && plugin.id === "linear"
+          ? null
+          : await makeFrameReader(asset, project, ctrl.signal);
+      if (handle) dispose = handle.dispose;
+      const result = await runAnnotationBatch({
         project,
-        trackId: activeTrackId,
-        reader: handle.reader,
+        trackIds: scopedTrackIds(project, activeTrackId, scope, true),
+        mode,
+        plugin,
+        replacePending,
+        reader: handle?.reader ?? {
+          read: async () => {
+            throw new Error("此算法无需读取像素。");
+          },
+        },
         signal: ctrl.signal,
-        onProgress: (done, total) => setProgress((done / total) * 100),
+        onProgress: (value, name) => {
+          setProgress(value);
+          setBusy(name ? `${title} · ${name}` : title);
+        },
       });
       ctrl.signal.throwIfAborted();
-      update((p) =>
-        setAnnotations(
-          {
-            ...p,
-            annotations: p.annotations.filter(
-              (a) =>
-                a.trackId !== activeTrackId ||
-                a.source === "manual" ||
-                a.review === "rejected",
-            ),
-          },
-          results,
-          true,
-        ),
+      const before = new Map(
+        project.annotations.map((a) => [`${a.trackId}:${a.frame}`, a]),
       );
+      const next = mergeGenerated(
+        project,
+        result.annotations,
+        mode,
+        replacePending,
+      );
+      const changed = next.annotations.filter(
+        (a) => before.get(`${a.trackId}:${a.frame}`) !== a,
+      );
+      update(() => next);
+      setJobResult(
+        result.tracks.map((t) => ({
+          ...t,
+          count: changed.filter((a) => a.trackId === t.trackId).length,
+        })),
+      );
+      const incomplete = result.tracks.filter(
+        (t) => t.status !== "done",
+      ).length;
       notify(
-        results.length
-          ? `已生成 ${results.length} 个 AI 关键帧，请查看并确认。`
-          : "未生成新的 AI 关键帧，请核对建议人工点或调整间隔。",
+        `${SCOPE_NAMES[scope]}：已写入 ${changed.length} 个待确认框${incomplete ? `，${incomplete} 个对象需处理，原因见任务明细` : "，请复核"}。`,
       );
     } catch (error) {
       notify(
         error instanceof DOMException && error.name === "AbortError"
-          ? "AI 关键帧标注已取消。"
+          ? "任务已取消，本次结果未写入。"
           : error instanceof Error
             ? error.message
-            : "AI 关键帧标注失败。",
+            : "处理失败。",
       );
     } finally {
       dispose();
@@ -594,60 +770,8 @@ export default function App() {
       setBusy("");
     }
   };
-  const fillFrames = async () => {
-    if (!project || !asset || allBusy) return;
-    pause();
-    const plugin = fillPlugins.get(fillId);
-    setBusy(plugin.name);
-    setProgress(0);
-    const ctrl = new AbortController();
-    controller.current = ctrl;
-    let dispose = () => {};
-    try {
-      const handle = await makeFrameReader(asset, project, ctrl.signal);
-      dispose = handle.dispose;
-      const results = await plugin.fill({
-        project,
-        trackId: activeTrackId,
-        reader: handle.reader,
-        signal: ctrl.signal,
-        onProgress: (done, total) => setProgress((done / total) * 100),
-      });
-      ctrl.signal.throwIfAborted();
-      update((p) =>
-        setAnnotations(
-          {
-            ...p,
-            annotations: p.annotations.filter(
-              (a) =>
-                a.trackId !== activeTrackId ||
-                (a.source !== "interpolated" && a.source !== "tracked") ||
-                a.review === "rejected",
-            ),
-          },
-          results,
-          true,
-        ),
-      );
-      notify(
-        results.length
-          ? `${plugin.name}完成，新增 ${results.length} 帧，请复核。`
-          : "未生成新帧。可增加人工关键帧后重试。",
-      );
-    } catch (error) {
-      notify(
-        error instanceof DOMException && error.name === "AbortError"
-          ? "补帧任务已取消。"
-          : error instanceof Error
-            ? error.message
-            : "补帧失败。",
-      );
-    } finally {
-      dispose();
-      controller.current = null;
-      setBusy("");
-    }
-  };
+  const assist = () => runJob("assist");
+  const fillFrames = () => runJob("fill");
   const backup = () => {
     if (project) {
       downloadBlob(
@@ -757,6 +881,15 @@ export default function App() {
           setTrackId={setTrackId}
           update={update}
           manual={manual}
+          copyBox={copyBox}
+          pasteBox={pasteBox}
+          canPaste={!!copiedBox}
+          addTrack={createTrack}
+          scope={scope}
+          setScope={setScope}
+          replacePending={replacePending}
+          setReplacePending={setReplacePending}
+          jobResult={jobResult}
           onDynamic={onDynamic}
           startDynamic={startDynamic}
           endDynamic={endDynamic}
@@ -824,12 +957,59 @@ export default function App() {
           exportStep={() => changeStep(3)}
         />
       )}
+      {replacement && (
+        <Modal
+          title="替换当前任务"
+          onClose={() => {
+            replacement.dispose?.();
+            setReplacement(null);
+          }}
+        >
+          <p>{replacement.message}</p>
+          <p>
+            当前任务「{project?.name}」有 {project?.annotations.length}{" "}
+            个框。可先下载工程备份；原素材需单独保留。
+          </p>
+          <div className="modal-actions">
+            <button
+              className="button"
+              onClick={() => {
+                replacement.dispose?.();
+                setReplacement(null);
+              }}
+            >
+              取消
+            </button>
+            <button
+              className="button"
+              onClick={() => {
+                const action = replacement;
+                setReplacement(null);
+                action.run();
+              }}
+            >
+              继续替换
+            </button>
+            <button
+              className="button primary"
+              onClick={() => {
+                backup();
+                const action = replacement;
+                setReplacement(null);
+                action.run();
+              }}
+            >
+              备份并继续
+            </button>
+          </div>
+        </Modal>
+      )}
       <footer className="app-footer">
         <span>
           <ShieldCheck size={13} /> 本地保存
         </span>
         <span>
-          <Github size={13} /> v0.4.0
+          <Github size={13} /> v0.5.0
         </span>
       </footer>
       {toast && (

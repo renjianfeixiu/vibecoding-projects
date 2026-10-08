@@ -41,8 +41,10 @@ export function useProject() {
   const update = useCallback(
     (change: (previous: Project) => Project, history = true) => {
       if (!current.current) return;
+      const next = change(current.current);
+      if (next === current.current) return;
       if (history) checkpoint();
-      replace(change(current.current));
+      replace(next);
     },
     [checkpoint, replace],
   );
@@ -60,19 +62,43 @@ export function useProject() {
     replace(next);
     setRevision((r) => r + 1);
   }, [replace]);
+  const persist = useCallback(() => {
+    if (!current.current) return true;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(current.current));
+      setSaveStatus("已保存到本机");
+      return true;
+    } catch {
+      setSaveStatus("保存失败，请下载工程");
+      return false;
+    }
+  }, []);
   useEffect(() => {
     if (!project) return;
     setSaveStatus("保存中");
-    const timeout = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-        setSaveStatus("已保存到本机");
-      } catch {
-        setSaveStatus("本地存储已满，请下载工程");
-      }
-    }, 350);
+    const timeout = setTimeout(persist, 350);
     return () => clearTimeout(timeout);
-  }, [project]);
+  }, [project, persist]);
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === "hidden") persist();
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!persist()) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("pagehide", persist);
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("pagehide", persist);
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("visibilitychange", hidden);
+      persist();
+    };
+  }, [persist]);
   return {
     project,
     current,

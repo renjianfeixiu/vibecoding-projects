@@ -1,5 +1,5 @@
 import type { Annotation, Box, FrameFillPlugin } from "../core/types.ts";
-import { clampBox, frameCount } from "../core/project.ts";
+import { clampBox } from "../core/project.ts";
 import { matchTemplate, templateSamples } from "./template-matching.ts";
 
 interface Gray {
@@ -253,6 +253,8 @@ export function estimateMotion(
   };
 }
 
+import { trackBounds } from "../core/workflow.ts";
+
 export const opticalFlowTracking: FrameFillPlugin = {
   id: "pyramidal-lk",
   name: "双向光流 + 外观校验",
@@ -284,7 +286,8 @@ export const opticalFlowTracking: FrameFillPlugin = {
         .map((a) => a.frame),
     );
     const output = new Map<number, Annotation>();
-    const total = Math.max(1, frameCount(project.media) * 2);
+    const bounds = trackBounds(project, trackId);
+    const total = Math.max(1, (bounds.end - bounds.start + 1) * 2);
     let done = 0;
     const trace = async (anchor: Annotation, end: number) => {
       const direction = end > anchor.frame ? 1 : -1;
@@ -336,8 +339,9 @@ export const opticalFlowTracking: FrameFillPlugin = {
       }
       return result;
     };
-    if (anchors[0].frame > 0)
-      for (const [frame, a] of await trace(anchors[0], 0)) output.set(frame, a);
+    if (anchors[0].frame > bounds.start)
+      for (const [frame, a] of await trace(anchors[0], bounds.start))
+        output.set(frame, a);
     for (let i = 0; i < anchors.length - 1; i++) {
       const left = anchors[i],
         right = anchors[i + 1];
@@ -373,8 +377,8 @@ export const opticalFlowTracking: FrameFillPlugin = {
       }
     }
     const last = anchors.at(-1)!;
-    if (last.frame < frameCount(project.media) - 1)
-      for (const [frame, a] of await trace(last, frameCount(project.media) - 1))
+    if (last.frame < bounds.end)
+      for (const [frame, a] of await trace(last, bounds.end))
         output.set(frame, a);
     onProgress(total, total);
     return [...output.values()]

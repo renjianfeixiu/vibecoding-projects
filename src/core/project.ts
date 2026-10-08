@@ -58,9 +58,30 @@ export function setTaskFrameRate(project: Project, requested: number): Project {
   );
   if (project.annotations.length && fps !== project.media.fps)
     throw new Error("已有标注的任务帧率已固定，请在新任务中设置帧切分。");
+  const media = {
+    ...project.media,
+    sourceFps: sourceFrameRate(project.media),
+    fps,
+  };
+  const last = frameCount(media) - 1;
+  const ratio = fps / project.media.fps;
   return {
     ...project,
-    media: { ...project.media, sourceFps: sourceFrameRate(project.media), fps },
+    media,
+    tracks: project.tracks.map((track) => ({
+      ...track,
+      ...(track.startFrame === undefined
+        ? {}
+        : { startFrame: Math.min(last, Math.floor(track.startFrame * ratio)) }),
+      ...(track.endFrame === undefined
+        ? {}
+        : {
+            endFrame: Math.min(
+              last,
+              Math.max(0, Math.ceil((track.endFrame + 1) * ratio) - 1),
+            ),
+          }),
+    })),
     settings: {
       ...project.settings,
       samplingFps: Math.min(fps, project.settings.samplingFps),
@@ -166,16 +187,38 @@ export function exportAnnotations(project: Project, options: ExportOptions) {
       (!options.sampledOnly || a.frame % stride === 0),
   );
 }
-export function invalidateDerived(project: Project, trackId: number): Project {
-  return {
-    ...project,
-    annotations: project.annotations.filter(
+export function invalidateDerived(
+  project: Project,
+  trackId: number,
+  frame?: number,
+): Project {
+  const anchors = project.annotations
+    .filter(
       (a) =>
-        a.trackId !== trackId ||
-        a.source === "manual" ||
-        a.review === "rejected",
-    ),
-  };
+        a.trackId === trackId &&
+        a.review === "confirmed" &&
+        (a.source === "manual" || a.source === "assist"),
+    )
+    .map((a) => a.frame);
+  const left =
+    frame === undefined
+      ? -1
+      : Math.max(-1, ...anchors.filter((f) => f < frame));
+  const right =
+    frame === undefined
+      ? Infinity
+      : Math.min(Infinity, ...anchors.filter((f) => f > frame));
+  const annotations = project.annotations.filter(
+    (a) =>
+      a.trackId !== trackId ||
+      a.source === "manual" ||
+      a.review !== "pending" ||
+      a.frame <= left ||
+      a.frame >= right,
+  );
+  return annotations.length === project.annotations.length
+    ? project
+    : { ...project, annotations };
 }
 export function reviewAnnotation(
   project: Project,
@@ -183,23 +226,17 @@ export function reviewAnnotation(
   frame: number,
   review: "confirmed" | "rejected",
 ): Project {
-  return {
+  if (project.tracks.find((t) => t.id === trackId)?.locked)
+    throw new Error("请先解锁对象。");
+  const changed: Project = {
     ...project,
-    annotations: project.annotations
-      .filter(
-        (a) =>
-          !(
-            review === "rejected" &&
-            a.trackId === trackId &&
-            (a.source === "tracked" || a.source === "interpolated") &&
-            a.frame !== frame &&
-            a.review !== "rejected"
-          ),
-      )
-      .map((a) =>
-        a.trackId === trackId && a.frame === frame ? { ...a, review } : a,
-      ),
+    annotations: project.annotations.map((a) =>
+      a.trackId === trackId && a.frame === frame ? { ...a, review } : a,
+    ),
   };
+  return review === "rejected"
+    ? invalidateDerived(changed, trackId, frame)
+    : changed;
 }
 export function parseProject(text: string): Project {
   const p = JSON.parse(text) as Project;
@@ -280,7 +317,17 @@ export function parseProject(text: string): Project {
       track.id < 1 ||
       trackIds.has(track.id) ||
       !labelIds.has(track.labelId) ||
-      typeof track.name !== "string"
+      typeof track.name !== "string" ||
+      (track.locked !== undefined && typeof track.locked !== "boolean") ||
+      (track.hidden !== undefined && typeof track.hidden !== "boolean") ||
+      (track.startFrame !== undefined &&
+        (!Number.isInteger(track.startFrame) ||
+          track.startFrame < 0 ||
+          track.startFrame >= frameCount(p.media))) ||
+      (track.endFrame !== undefined &&
+        (!Number.isInteger(track.endFrame) ||
+          track.endFrame < (track.startFrame ?? 0) ||
+          track.endFrame >= frameCount(p.media)))
     )
       throw new Error("轨迹定义无效。");
     trackIds.add(track.id);
@@ -306,6 +353,12 @@ export function parseProject(text: string): Project {
         (!finite(a.score) || a.score < -1 || a.score > 1))
     )
       throw new Error("标注坐标、帧或状态无效。");
+    const track = p.tracks.find((t) => t.id === a.trackId)!;
+    if (
+      a.frame < (track.startFrame ?? 0) ||
+      a.frame > (track.endFrame ?? frameCount(p.media) - 1)
+    )
+      throw new Error("标注帧超出对象区间。");
     const key = `${a.trackId}:${a.frame}`;
     if (keys.has(key)) throw new Error("同一轨迹同一帧存在重复框。");
     keys.add(key);

@@ -115,7 +115,14 @@ export const templateMatching: AnnotationAssistPlugin = {
   id: "local-template",
   name: "本地模板匹配",
   description: "参考人工框的外观，按间隔读取视频像素生成候选。",
-  async generate({ project, trackId, reader, signal, onProgress }) {
+  async generate({
+    project,
+    trackId,
+    reader,
+    signal,
+    onProgress,
+    replacePending,
+  }) {
     const anchors = project.annotations
       .filter(
         (a) =>
@@ -127,7 +134,11 @@ export const templateMatching: AnnotationAssistPlugin = {
     if (!anchors.length) throw new Error("先为当前目标画一个人工关键帧。");
     const output: Annotation[] = [];
     const anchorIndices = new Map(anchors.map((a, i) => [a.frame, i]));
-    const candidates = plannedAICandidates(project, trackId).map((point) => ({
+    const candidates = plannedAICandidates(
+      project,
+      trackId,
+      replacePending ?? false,
+    ).map((point) => ({
       frame: point.frame,
       anchorIndex: anchorIndices.get(point.anchorFrame)!,
     }));

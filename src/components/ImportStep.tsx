@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -6,7 +6,6 @@ import {
   FileVideo,
   Image,
   Play,
-  Plus,
   RotateCcw,
   Upload,
   X,
@@ -20,7 +19,7 @@ import {
 } from "../core/project.ts";
 import { Field, formatTime } from "./Icon.tsx";
 import type { AnnotationImportBundle } from "../core/import.ts";
-import { removeLabel } from "../core/labels.ts";
+import { LabelManager } from "./LabelManager.tsx";
 
 interface Props {
   project: Project | null;
@@ -52,48 +51,10 @@ export function ImportStep({
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const annotationsInput = useRef<HTMLInputElement>(null);
-  const [drag, setDrag] = useState(false),
-    [newLabel, setNewLabel] = useState(""),
-    [deletingLabel, setDeletingLabel] = useState<number | null>(null),
-    [replacementId, setReplacementId] = useState(0);
+  const [drag, setDrag] = useState(false);
   const taskMedia = annotationImport?.project?.media ?? project?.media;
-  useEffect(() => setDeletingLabel(null), [project?.id]);
   const frameRateLocked =
     !!project?.annotations.length || !!annotationImport?.project;
-  const addLabel = () => {
-    const name = newLabel.trim();
-    if (
-      !name ||
-      !project ||
-      project.labels.some((label) => label.name === name)
-    )
-      return;
-    update((p) => ({
-      ...p,
-      labels: [
-        ...p.labels,
-        {
-          id: Math.max(...p.labels.map((l) => l.id)) + 1,
-          name,
-          color: ["#4478ef", "#13a896", "#e6a342", "#ac85d8"][
-            p.labels.length % 4
-          ],
-        },
-      ],
-    }));
-    setNewLabel("");
-  };
-  const requestRemove = (id: number) => {
-    if (!project || project.labels.length < 2) return;
-    const affected = new Set(
-      project.tracks.filter((t) => t.labelId === id).map((t) => t.id),
-    );
-    if (project.annotations.some((a) => affected.has(a.trackId))) {
-      setDeletingLabel(id);
-      setReplacementId(project.labels.find((l) => l.id !== id)!.id);
-    } else update((p) => removeLabel(p, id));
-  };
-  const selectedLabel = project?.labels.find((l) => l.id === deletingLabel);
   return (
     <main className={`import-step ${project ? "has-material" : ""}`}>
       <div className="hero">
@@ -320,101 +281,11 @@ export function ImportStep({
                 标注类别{" "}
                 <span>{project.labels.map((l) => l.name).join(" · ")}</span>
               </summary>
-              <div className="label-chips">
-                {project.labels.map((l) => (
-                  <span key={l.id}>
-                    <i style={{ background: l.color }} />
-                    {l.name}
-                    <button
-                      className="label-remove"
-                      aria-label={`删除类别 ${l.name}`}
-                      title={
-                        project.labels.length < 2
-                          ? "至少保留一个类别，可先添加新类别再删除"
-                          : `删除 ${l.name}`
-                      }
-                      disabled={
-                        loading || project.labels.length < 2 || !!selectedLabel
-                      }
-                      onClick={() => requestRemove(l.id)}
-                    >
-                      <X size={13} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              {project.labels.length === 1 && (
-                <p className="label-minimum">
-                  至少保留一个类别；可先添加新类别再删除。
-                </p>
-              )}
-              {selectedLabel && (
-                <div
-                  className="label-migration"
-                  role="group"
-                  aria-label="类别迁移"
-                >
-                  <p>「{selectedLabel.name}」已有标注，迁移目标后删除类别。</p>
-                  <div>
-                    <select
-                      aria-label="迁移到的类别"
-                      value={replacementId}
-                      disabled={loading}
-                      onChange={(e) => setReplacementId(Number(e.target.value))}
-                    >
-                      {project.labels
-                        .filter((l) => l.id !== deletingLabel)
-                        .map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name}
-                          </option>
-                        ))}
-                    </select>
-                    <button
-                      className="button small"
-                      disabled={loading}
-                      onClick={() => setDeletingLabel(null)}
-                    >
-                      取消
-                    </button>
-                    <button
-                      className="button primary small"
-                      disabled={loading}
-                      onClick={() => {
-                        update((p) =>
-                          removeLabel(p, selectedLabel.id, replacementId),
-                        );
-                        setDeletingLabel(null);
-                      }}
-                    >
-                      迁移并删除
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div className="add-label">
-                <input
-                  aria-label="新类别名称"
-                  placeholder="添加类别"
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addLabel();
-                    }
-                  }}
-                />
-                <button
-                  className="button icon"
-                  title="添加类别"
-                  aria-label="添加类别"
-                  disabled={!newLabel.trim()}
-                  onClick={addLabel}
-                >
-                  <Plus size={17} />
-                </button>
-              </div>
+              <LabelManager
+                project={project}
+                update={update}
+                disabled={loading}
+              />
             </details>
             <button
               className="button primary large enter-workspace"
