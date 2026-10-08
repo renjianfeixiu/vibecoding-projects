@@ -6,7 +6,11 @@ import {
   SOURCE_COLORS,
   SOURCE_NAMES,
 } from "../core/project.ts";
-import { keyframePlan, SUGGESTION_REASONS } from "../core/keyframes.ts";
+import {
+  availableAISuggestions,
+  keyframePlan,
+  SUGGESTION_REASONS,
+} from "../core/keyframes.ts";
 import { ChevronRight } from "./icons.ts";
 
 interface Props {
@@ -45,7 +49,7 @@ export function Timeline({
     () => keyframePlan(project, trackId),
     [project, trackId],
   );
-  const aiTodo = plan.aiPoints.filter((point) => !point.completed);
+  const aiTodo = availableAISuggestions(project, trackId, plan);
   const manual = plan.manualSuggestions.find((point) => point.frame === frame);
   const ai = aiTodo.find((point) => point.frame === frame);
   const next = (points: { frame: number }[]) => {
@@ -144,10 +148,11 @@ export function Timeline({
             <div className="suggestion-legend">
               <span>
                 <i className="manual" />
-                待人工 {plan.manualSuggestions.length}
+                建议人工 {plan.manualSuggestions.length}
               </span>
               <span>
-                <i className="ai" />待 AI {aiTodo.length}
+                <i className="ai" />
+                建议 AI {aiTodo.length}
               </span>
             </div>
             <div>

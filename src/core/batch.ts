@@ -8,6 +8,7 @@ import type {
 import { trackBounds } from "./workflow.ts";
 import type { JobMode } from "./workflow.ts";
 import { plannedAICandidates } from "./keyframes.ts";
+import { keyframeReviewState, reviewFlowState } from "./review-flow.ts";
 
 export interface TrackJobResult {
   trackId: number;
@@ -71,6 +72,11 @@ export function readiness(
   const track = project.tracks.find((t) => t.id === id);
   if (!track) return "对象不存在";
   if (track.locked) return "对象已锁定";
+  const review = keyframeReviewState(project, id);
+  if (!review.hasManual) return "尚无人工参考框";
+  if (!review.manualDone) return "请先完成人工关键帧复核";
+  if (mode === "fill" && !review.aiDone)
+    return "请先完成 AI 关键帧复核，或明确跳过 AI";
   const anchors = project.annotations.filter(
     (a) =>
       a.trackId === id &&
@@ -106,6 +112,11 @@ export async function runAnnotationBatch(request: {
     replacePending,
   } = request;
   signal.throwIfAborted();
+  const flow = reviewFlowState(project, trackIds);
+  if (flow.targets.length && !flow.manualDone)
+    throw new Error("请先确认此处理范围内的人工关键帧，再生成 AI 标注。");
+  if (mode === "fill" && flow.targets.length && !flow.aiDone)
+    throw new Error("请先完成此处理范围的 AI 关键帧复核，再生成补帧。");
   const output: BatchResult = { annotations: [], tracks: [] };
   const cache = new Map<number, ImageData>();
   let bytes = 0;

@@ -19,14 +19,13 @@ import {
 } from "./icons.ts";
 import type { Box, MediaAsset, Project } from "../core/types.ts";
 import { frameCount, reviewAnnotation } from "../core/project.ts";
-import { editTrack, trackBounds } from "../core/workflow.ts";
+import { trackBounds } from "../core/workflow.ts";
 import type { OperationScope } from "../core/workflow.ts";
 import type { TrackJobResult } from "../core/batch.ts";
 import { LabelManager } from "./LabelManager.tsx";
 import { Modal } from "./Modal.tsx";
 import { ObjectPanel } from "./ObjectPanel.tsx";
-import { AssistPanel } from "./AssistPanel.tsx";
-import { ReviewPanel } from "./ReviewPanel.tsx";
+import { ReviewWorkflow } from "./ReviewWorkflow.tsx";
 import { MediaStage } from "./MediaStage.tsx";
 import { Timeline } from "./Timeline.tsx";
 import type { ToolMode } from "./MediaStage.tsx";
@@ -47,6 +46,9 @@ interface Props {
   setTrackId: (id: number) => void;
   update: (change: (project: Project) => Project) => void;
   manual: (box: Box, trackId?: number) => void;
+  draw: (box: Box, trackId: number, labelId: number) => void;
+  drawLabelId: number;
+  setDrawLabelId: (id: number) => void;
   copyBox: () => void;
   pasteBox: () => void;
   canPaste: boolean;
@@ -56,6 +58,7 @@ interface Props {
   replacePending: boolean;
   setReplacePending: (value: boolean) => void;
   jobResult: TrackJobResult[] | null;
+  jobResultMode: "assist" | "fill" | null;
   onDynamic: (point: { x: number; y: number } | null) => void;
   startDynamic: () => void;
   endDynamic: () => void;
@@ -166,8 +169,8 @@ export function Workspace(props: Props) {
           <div>
             <strong>画框</strong>
             <span>
-              暂停后拖动画框；调整模式可拖动四角。空格播放，方向键逐帧，Shift +
-              方向键跳 10 帧。
+              同一帧连续画框会自动新增对象，下一帧延续当前对象；调整模式可移动、拖动四角。空格播放，方向键逐帧，Shift
+              + 方向键跳 10 帧。
             </span>
           </div>
           <div>
@@ -179,7 +182,8 @@ export function Workspace(props: Props) {
           <div>
             <strong>AI 关键帧与补帧</strong>
             <span>
-              模板匹配生成间隔关键帧，确认后可选线性插帧或光流跟踪。光流逐帧查看像素并校验外观，跟丢时留空；分数是匹配相关性。
+              按右侧流程先复核人工框，再生成并复核 AI
+              关键帧，完成后选择插帧或光流补帧。修改关键帧需重新复核，光流跟丢时留空。
             </span>
           </div>
           <div>
@@ -208,6 +212,7 @@ export function Workspace(props: Props) {
             <div className="tool-group">
               <button
                 className={tool === "draw" ? "active" : ""}
+                title="同帧连续画框自动新增对象；修改已有框请用调整模式"
                 disabled={disabled || playing}
                 onClick={() => mode("draw")}
               >
@@ -325,16 +330,15 @@ export function Workspace(props: Props) {
           </div>
           <div className="quick-category-bar">
             <label>
-              类别{" "}
+              新框类别{" "}
               <select
-                aria-label="当前目标类别"
-                value={track.labelId}
-                disabled={disabled || playing || track.locked}
-                onChange={(e) =>
-                  update((p) =>
-                    editTrack(p, trackId, { labelId: Number(e.target.value) }),
-                  )
-                }
+                aria-label="新框类别"
+                value={props.drawLabelId}
+                disabled={disabled || playing}
+                onChange={(e) => {
+                  props.setDrawLabelId(Number(e.target.value));
+                  mode("draw");
+                }}
               >
                 {project.labels.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -386,6 +390,8 @@ export function Workspace(props: Props) {
               trackId={trackId}
               disabled={disabled}
               onBox={props.manual}
+              drawLabelId={props.drawLabelId}
+              onDrawBox={props.draw}
               selectTrack={props.setTrackId}
               onDynamic={props.onDynamic}
               startDynamic={props.startDynamic}
@@ -465,29 +471,32 @@ export function Workspace(props: Props) {
           />
         </section>
         <aside className="review-column">
-          {temporal && (
-            <AssistPanel
-              project={project}
-              trackId={trackId}
-              disabled={disabled || playing}
-              busy={busy}
-              progress={props.progress}
-              scope={props.scope}
-              setScope={props.setScope}
-              replacePending={props.replacePending}
-              setReplacePending={props.setReplacePending}
-              assistId={props.assistId}
-              setAssistId={props.setAssistId}
-              fillId={props.fillId}
-              setFillId={props.setFillId}
-              assist={props.assist}
-              fillFrames={props.fillFrames}
-              cancel={props.cancel}
-              update={update}
-              result={props.jobResult}
-              select={props.setTrackId}
-            />
-          )}
+          <ReviewWorkflow
+            project={project}
+            trackId={trackId}
+            disabled={disabled || playing}
+            busy={busy}
+            progress={props.progress}
+            scope={props.scope}
+            setScope={props.setScope}
+            replacePending={props.replacePending}
+            setReplacePending={props.setReplacePending}
+            assistId={props.assistId}
+            setAssistId={props.setAssistId}
+            fillId={props.fillId}
+            setFillId={props.setFillId}
+            assist={props.assist}
+            fillFrames={props.fillFrames}
+            cancel={props.cancel}
+            update={update}
+            result={props.jobResult}
+            resultMode={props.jobResultMode}
+            frame={frame}
+            select={(id, nextFrame) => {
+              props.setTrackId(id);
+              if (nextFrame !== undefined) props.setFrame(nextFrame);
+            }}
+          />
           <ObjectPanel
             project={project}
             trackId={trackId}
@@ -496,17 +505,6 @@ export function Workspace(props: Props) {
             update={update}
             select={props.setTrackId}
             add={props.addTrack}
-          />
-          <ReviewPanel
-            project={project}
-            trackId={trackId}
-            frame={frame}
-            disabled={disabled || playing}
-            update={update}
-            select={(id, nextFrame) => {
-              props.setTrackId(id);
-              props.setFrame(nextFrame);
-            }}
           />
           <section className="card coordinate-card">
             <details className="current-frame-editor">

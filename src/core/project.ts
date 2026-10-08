@@ -333,6 +333,27 @@ export function parseProject(text: string): Project {
     trackIds.add(track.id);
   }
   const keys = new Set<string>();
+  if (p.keyframeReviews !== undefined) {
+    if (!Array.isArray(p.keyframeReviews))
+      throw new Error("关键帧复核记录无效。");
+    const reviewed = new Set<number>();
+    for (const r of p.keyframeReviews) {
+      if (
+        !r ||
+        !trackIds.has(r.trackId) ||
+        reviewed.has(r.trackId) ||
+        [r.manualStamp, r.aiRunStamp, r.aiStamp].some(
+          (s) =>
+            s !== undefined &&
+            (typeof s !== "string" ||
+              !/^[a-f0-9]{8}:[a-f0-9]{8}:\d{1,9}$/.test(s)),
+        ) ||
+        (r.aiSkipped !== undefined && typeof r.aiSkipped !== "boolean")
+      )
+        throw new Error("关键帧复核记录无效。");
+      reviewed.add(r.trackId);
+    }
+  }
   for (const a of p.annotations) {
     if (
       !trackIds.has(a.trackId) ||

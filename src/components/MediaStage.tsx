@@ -23,6 +23,8 @@ interface Props {
   tool: ToolMode;
   trackId: number;
   disabled: boolean;
+  drawLabelId: number;
+  onDrawBox: (box: Box, trackId: number, labelId: number) => void;
   onBox: (box: Box, trackId?: number) => void;
   selectTrack: (id: number) => void;
   onDynamic: (point: { x: number; y: number } | null) => void;
@@ -32,6 +34,7 @@ interface Props {
 interface Gesture {
   start: { x: number; y: number };
   trackId: number;
+  drawLabelId?: number;
   box?: Box;
   corner?: ResizeCorner;
   dynamic?: boolean;
@@ -45,6 +48,8 @@ export function MediaStage({
   tool,
   trackId,
   disabled,
+  drawLabelId,
+  onDrawBox,
   onBox,
   selectTrack,
   onDynamic,
@@ -237,8 +242,7 @@ export function MediaStage({
       if (targetTrack.locked) return;
       gesture.current = { start: p, trackId: a.trackId, box: a.box, corner };
     } else {
-      if (!editable) return;
-      gesture.current = { start: p, trackId };
+      gesture.current = { start: p, trackId, drawLabelId };
     }
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -302,8 +306,11 @@ export function MediaStage({
       previewRef.current.width >= 3 &&
       previewRef.current.height >= 3 &&
       Math.hypot(point(e).x - g.start.x, point(e).y - g.start.y) > 0.5
-    )
-      onBox(previewRef.current, g.trackId);
+    ) {
+      if (g.drawLabelId !== undefined)
+        onDrawBox(previewRef.current, g.trackId, g.drawLabelId);
+      else onBox(previewRef.current, g.trackId);
+    }
     gesture.current = null;
     setDraft(null);
     if (e.currentTarget.hasPointerCapture(e.pointerId))

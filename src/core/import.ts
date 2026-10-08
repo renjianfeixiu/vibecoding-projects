@@ -112,7 +112,13 @@ export function applyAnnotationImport(
     .read(bundle.files, base.media);
   if (!boxes.length) throw new Error("文件中没有可显示的矩形框。");
   if (boxes.length > 100000) throw new Error("一次最多导入 10 万个矩形框。");
-  const next: Project = { ...base, labels: [], tracks: [], annotations: [] },
+  const next: Project = {
+      ...base,
+      labels: [],
+      tracks: [],
+      annotations: [],
+      keyframeReviews: [],
+    },
     labels = new Map<string, number>(),
     tracks = new Map<string, number>(),
     keys = new Set<string>();

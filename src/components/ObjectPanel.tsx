@@ -161,6 +161,25 @@ function ObjectSettings({
           保存名称
         </button>
       </form>
+      <label className="object-category-field">
+        对象类别
+        <select
+          aria-label="当前对象类别"
+          value={track.labelId}
+          disabled={disabled || track.locked}
+          onChange={(e) =>
+            attempt((p) =>
+              editTrack(p, trackId, { labelId: Number(e.target.value) }),
+            )
+          }
+        >
+          {project.labels.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <form
         onSubmit={(e) => {
           e.preventDefault();

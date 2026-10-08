@@ -109,6 +109,13 @@ export function removeTrack(project: Project, id: number): Project {
     ...project,
     tracks: project.tracks.filter((t) => t.id !== id),
     annotations: project.annotations.filter((a) => a.trackId !== id),
+    ...(project.keyframeReviews
+      ? {
+          keyframeReviews: project.keyframeReviews.filter(
+            (r) => r.trackId !== id,
+          ),
+        }
+      : {}),
   };
 }
 export function setTrackRange(
@@ -215,6 +222,45 @@ export function manualAnnotation(
       review: "confirmed",
     },
   ]);
+}
+
+// Drawing an additional box in one frame creates another object. Editing and
+// pasting use manualAnnotation directly, so they keep the selected identity.
+export function drawManualBox(
+  project: Project,
+  activeId: number,
+  frame: number,
+  box: Box,
+  labelId: number,
+): { project: Project; trackId: number; created: boolean } {
+  const active = project.tracks.find((t) => t.id === activeId);
+  if (!active) throw new Error("对象不存在。");
+  if (!project.labels.some((l) => l.id === labelId))
+    throw new Error("类别不存在。");
+  const bounds = trackBounds(project, activeId);
+  const occupied = project.annotations.some(
+    (a) =>
+      a.trackId === activeId && a.frame === frame && a.review !== "rejected",
+  );
+  const empty = !project.annotations.some((a) => a.trackId === activeId);
+  const reuse =
+    !active.locked &&
+    !active.hidden &&
+    frame >= bounds.start &&
+    frame <= bounds.end &&
+    !occupied &&
+    (active.labelId === labelId || empty);
+  const next = reuse
+    ? active.labelId === labelId
+      ? project
+      : editTrack(project, activeId, { labelId })
+    : addTrack(project, labelId, frame);
+  const trackId = reuse ? activeId : next.tracks.at(-1)!.id;
+  return {
+    project: manualAnnotation(next, trackId, frame, box),
+    trackId,
+    created: !reuse,
+  };
 }
 
 export function bulkReview(

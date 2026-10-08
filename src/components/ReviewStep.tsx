@@ -144,6 +144,11 @@ export function ReviewStep(props: Props) {
             tool="move"
             trackId={props.trackId}
             disabled={true}
+            drawLabelId={
+              project.tracks.find((t) => t.id === props.trackId)?.labelId ??
+              project.labels[0].id
+            }
+            onDrawBox={() => {}}
             onBox={() => {}}
             selectTrack={() => {}}
             onDynamic={() => {}}

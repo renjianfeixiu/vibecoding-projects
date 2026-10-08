@@ -144,6 +144,21 @@ export function keyframePlan(project: Project, trackId: number): KeyframePlan {
   };
 }
 
+export function availableAISuggestions(
+  project: Project,
+  trackId: number,
+  plan = keyframePlan(project, trackId),
+) {
+  const occupied = new Set(
+    project.annotations
+      .filter((a) => a.trackId === trackId)
+      .map((a) => a.frame),
+  );
+  return plan.aiPoints.filter(
+    (point) => !point.completed && !occupied.has(point.frame),
+  );
+}
+
 export function plannedAICandidates(
   project: Project,
   trackId: number,

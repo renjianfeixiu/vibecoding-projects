@@ -51,6 +51,7 @@ import { Workspace } from "./components/Workspace.tsx";
 import { Modal } from "./components/Modal.tsx";
 import {
   addTrack,
+  drawManualBox,
   copyFrameBox,
   manualAnnotation,
   mergeGenerated,
@@ -61,6 +62,7 @@ import {
 import type { OperationScope } from "./core/workflow.ts";
 import { runAnnotationBatch } from "./core/batch.ts";
 import type { TrackJobResult } from "./core/batch.ts";
+import { recordAIAttempt } from "./core/review-flow.ts";
 import { ReviewStep } from "./components/ReviewStep.tsx";
 import type { ExportSettings } from "./components/ExportStep.tsx";
 import {
@@ -84,13 +86,26 @@ export default function App() {
   const [speed, setSpeed] = useState(1),
     [tool, setTool] = useState<ToolMode>("draw"),
     [trackId, setTrackId] = useState(1);
+  const [drawLabelId, setDrawLabelId] = useState<number | null>(null);
   const activeTrackId = project?.tracks.some((t) => t.id === trackId)
     ? trackId
     : (project?.tracks[0].id ?? 1);
+  const drawingLabelId = project?.labels.some((l) => l.id === drawLabelId)
+    ? drawLabelId!
+    : (project?.tracks.find((t) => t.id === activeTrackId)?.labelId ?? 1);
+  const selectTrack = (id: number) => {
+    setTrackId(id);
+    setDrawLabelId(
+      current.current?.tracks.find((t) => t.id === id)?.labelId ?? null,
+    );
+  };
   const [assistId, setAssistId] = useState("local-template");
   const [scope, setScope] = useState<OperationScope>("all"),
     [replacePending, setReplacePending] = useState(false);
   const [jobResult, setJobResult] = useState<TrackJobResult[] | null>(null);
+  const [jobResultMode, setJobResultMode] = useState<"assist" | "fill" | null>(
+    null,
+  );
   const [copiedBox, setCopiedBox] = useState<Box | null>(null);
   const [replacement, setReplacement] = useState<{
     message: string;
@@ -123,6 +138,8 @@ export default function App() {
   useEffect(() => {
     setAudit(null);
     setJobResult(null);
+    setJobResultMode(null);
+    setDrawLabelId(null);
     setScope("all");
     setReplacePending(false);
     setCopiedBox(null);
@@ -372,6 +389,22 @@ export default function App() {
       notify(error instanceof Error ? error.message : "无法修改此标注。");
     }
   };
+  const draw = (box: Box, id: number, labelId: number) => {
+    if (!current.current || allBusy || playingRef.current) return;
+    try {
+      const result = drawManualBox(
+        current.current,
+        id,
+        frameRef.current,
+        box,
+        labelId,
+      );
+      update(() => result.project);
+      selectTrack(result.trackId);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "无法新增标注。");
+    }
+  };
   const copyBox = () => {
     if (!current.current) return;
     const selected = copyFrameBox(
@@ -388,9 +421,7 @@ export default function App() {
   };
   const createTrack = () => {
     if (!current.current || allBusy || playingRef.current) return;
-    const labelId =
-      current.current.tracks.find((t) => t.id === activeTrackId)?.labelId ??
-      current.current.labels[0].id;
+    const labelId = drawingLabelId;
     const next = addTrack(current.current, labelId, frameRef.current);
     update(() => next);
     setTrackId(next.tracks.at(-1)!.id);
@@ -704,6 +735,8 @@ export default function App() {
     const title = mode === "assist" ? "生成 AI 关键帧" : plugin.name;
     setBusy(title);
     setProgress(0);
+    setJobResultMode(mode);
+    setJobResult(null);
     const ctrl = new AbortController();
     controller.current = ctrl;
     let dispose = () => {};
@@ -734,7 +767,7 @@ export default function App() {
       const before = new Map(
         project.annotations.map((a) => [`${a.trackId}:${a.frame}`, a]),
       );
-      const next = mergeGenerated(
+      let next = mergeGenerated(
         project,
         result.annotations,
         mode,
@@ -743,6 +776,13 @@ export default function App() {
       const changed = next.annotations.filter(
         (a) => before.get(`${a.trackId}:${a.frame}`) !== a,
       );
+      if (mode === "assist")
+        next = recordAIAttempt(
+          next,
+          result.tracks
+            .filter((t) => t.status === "done")
+            .map((t) => t.trackId),
+        );
       update(() => next);
       setJobResult(
         result.tracks.map((t) => ({
@@ -878,9 +918,12 @@ export default function App() {
           tool={tool}
           setTool={setTool}
           trackId={activeTrackId}
-          setTrackId={setTrackId}
+          setTrackId={selectTrack}
           update={update}
           manual={manual}
+          draw={draw}
+          drawLabelId={drawingLabelId}
+          setDrawLabelId={setDrawLabelId}
           copyBox={copyBox}
           pasteBox={pasteBox}
           canPaste={!!copiedBox}
@@ -890,6 +933,7 @@ export default function App() {
           replacePending={replacePending}
           setReplacePending={setReplacePending}
           jobResult={jobResult}
+          jobResultMode={jobResultMode}
           onDynamic={onDynamic}
           startDynamic={startDynamic}
           endDynamic={endDynamic}
@@ -1009,7 +1053,7 @@ export default function App() {
           <ShieldCheck size={13} /> 本地保存
         </span>
         <span>
-          <Github size={13} /> v0.5.0
+          <Github size={13} /> v0.6.0
         </span>
       </footer>
       {toast && (

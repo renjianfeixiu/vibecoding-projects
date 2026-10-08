@@ -28,6 +28,13 @@ export interface Track {
   locked?: boolean;
   hidden?: boolean;
 }
+export interface KeyframeReview {
+  trackId: number;
+  manualStamp?: string;
+  aiRunStamp?: string;
+  aiStamp?: string;
+  aiSkipped?: boolean;
+}
 export interface MediaInfo {
   kind: "demo" | "video" | "image";
   fileName: string;
@@ -56,6 +63,7 @@ export interface Project {
   labels: Label[];
   tracks: Track[];
   annotations: Annotation[];
+  keyframeReviews?: KeyframeReview[];
 }
 export interface MediaAsset {
   info: MediaInfo;

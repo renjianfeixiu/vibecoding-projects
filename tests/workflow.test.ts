@@ -19,6 +19,10 @@ import {
   bulkReview,
 } from "../src/core/workflow.ts";
 import { runAnnotationBatch } from "../src/core/batch.ts";
+import {
+  confirmManualKeyframes,
+  confirmAIKeyframes,
+} from "../src/core/review-flow.ts";
 import { resizeBox } from "../src/core/geometry.ts";
 import { keyframePlan } from "../src/core/keyframes.ts";
 import { templateMatching } from "../src/plugins/template-matching.ts";
@@ -57,6 +61,19 @@ function fixture(): Project {
     annotation(3, 0),
   ];
   return p;
+}
+function approved(p: Project) {
+  return confirmManualKeyframes(
+    p,
+    p.tracks.map((t) => t.id),
+  );
+}
+function humanOnly(p: Project) {
+  return confirmAIKeyframes(
+    approved(p),
+    p.tracks.map((t) => t.id),
+    true,
+  );
 }
 const noPixels = {
   read: async () => {
@@ -187,7 +204,7 @@ test("real batch interpolation processes two objects across a class and skips ob
   const p = fixture();
   const progress: number[] = [];
   const result = await runAnnotationBatch({
-    project: p,
+    project: humanOnly(p),
     trackIds: scopedTrackIds(p, 1, "all", true),
     mode: "fill",
     plugin: linearInterpolation,
@@ -209,7 +226,7 @@ test("real batch interpolation processes two objects across a class and skips ob
 test("one failing target leaves its prior data intact and does not prevent other targets from completing", async () => {
   const p = fixture();
   const result = await runAnnotationBatch({
-    project: p,
+    project: approved(p),
     trackIds: [1, 2],
     mode: "assist",
     plugin: {
@@ -249,7 +266,7 @@ test("invalid plugin output cannot cross object identities or poison the saved p
   ]) {
     const p = fixture();
     const result = await runAnnotationBatch({
-      project: p,
+      project: approved(p),
       trackIds: [1, 2],
       mode: "assist",
       plugin: {
@@ -284,7 +301,7 @@ test("cancelled batch never returns a partial result that could replace existing
   await assert.rejects(
     () =>
       runAnnotationBatch({
-        project: p,
+        project: approved(p),
         trackIds: [1, 2],
         mode: "assist",
         plugin: {
@@ -428,7 +445,7 @@ test("real pixel assistance runs independently for objects in two categories, pr
     },
   };
   const result = await runAnnotationBatch({
-    project: p,
+    project: approved(p),
     trackIds: scopedTrackIds(p, 1, "all"),
     mode: "assist",
     plugin: templateMatching,
@@ -458,7 +475,7 @@ test("real pixel assistance runs independently for objects in two categories, pr
   const merged = mergeGenerated(p, result.annotations, "assist");
   assert.deepEqual(parseProject(JSON.stringify(merged)), merged);
   const repeated = await runAnnotationBatch({
-    project: merged,
+    project: approved(merged),
     trackIds: [1, 2],
     mode: "assist",
     plugin: templateMatching,
@@ -475,7 +492,7 @@ test("optical flow never extrapolates before or after an explicitly bounded obje
     { ...annotation(1, 4), box: { x: 30, y: 25, width: 24, height: 20 } },
   ];
   const batch = await runAnnotationBatch({
-    project: p,
+    project: humanOnly(p),
     trackIds: [1],
     mode: "fill",
     plugin: opticalFlowTracking,

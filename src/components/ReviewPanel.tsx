@@ -15,8 +15,9 @@ import {
 import { Check, ChevronLeft, ChevronRight, X } from "./icons.ts";
 import { Modal } from "./Modal.tsx";
 import { useEffect } from "react";
+import { keyframeReviewState } from "../core/review-flow.ts";
 
-type SourceFilter = "all" | "manual" | "assist" | "derived";
+type SourceFilter = "manual" | "assist" | "derived";
 type StatusFilter = "visible" | "pending" | "rejected";
 export function ReviewPanel({
   project,
@@ -25,6 +26,9 @@ export function ReviewPanel({
   disabled,
   update,
   select,
+  scope,
+  source,
+  stageConfirmed,
 }: {
   project: Project;
   trackId: number;
@@ -32,20 +36,25 @@ export function ReviewPanel({
   disabled: boolean;
   update: (change: (p: Project) => Project) => void;
   select: (id: number, frame: number) => void;
+  scope: OperationScope;
+  source: SourceFilter;
+  stageConfirmed: boolean;
 }) {
-  const [scope, setScope] = useState<OperationScope>("track"),
-    [source, setSource] = useState<SourceFilter>("all"),
-    [status, setStatus] = useState<StatusFilter>("visible"),
+  const [status, setStatus] = useState<StatusFilter>("visible"),
     [page, setPage] = useState(0),
     [confirm, setConfirm] = useState<"confirmed" | "rejected" | null>(null),
     [error, setError] = useState("");
   const ids = new Set(scopedTrackIds(project, trackId, scope, true));
+  const reviewedHumans = new Set(
+    source === "manual" && !stageConfirmed
+      ? [...ids].filter((id) => keyframeReviewState(project, id).manualDone)
+      : [],
+  );
   const matches = (a: Annotation) =>
     ids.has(a.trackId) &&
-    (source === "all" ||
-      (source === "derived"
-        ? a.source === "tracked" || a.source === "interpolated"
-        : a.source === source));
+    (source === "derived"
+      ? a.source === "tracked" || a.source === "interpolated"
+      : a.source === source);
   const entries = project.annotations
     .filter(
       (a) =>
@@ -63,7 +72,12 @@ export function ReviewPanel({
       !project.tracks.find((t) => t.id === a.trackId)?.locked,
   );
   const todo = project.annotations
-    .filter((a) => ids.has(a.trackId) && a.review === "pending")
+    .filter(
+      (a) =>
+        matches(a) &&
+        a.review === "pending" &&
+        !project.tracks.find((t) => t.id === a.trackId)?.locked,
+    )
     .sort((a, b) => a.frame - b.frame || a.trackId - b.trackId);
   const maxPage = Math.max(0, Math.ceil(entries.length / 20) - 1),
     actualPage = Math.min(page, maxPage);
@@ -96,24 +110,11 @@ export function ReviewPanel({
     setConfirm(null);
   };
   return (
-    <section className="card review-panel">
-      <div className="panel-heading">
-        <h2>帧复核</h2>
-        <span className="status pending">{todo.length} 待确认</span>
-      </div>
+    <div className="review-panel stage-review">
       <div className="review-scope">
-        <select
-          aria-label="复核范围"
-          value={scope}
-          onChange={(e) => setScope(e.target.value as OperationScope)}
-          disabled={disabled}
-        >
-          {(["track", "label", "all"] as const).map((v) => (
-            <option key={v} value={v}>
-              {SCOPE_NAMES[v]}
-            </option>
-          ))}
-        </select>
+        <span>
+          {entries.length} 个框 · {todo.length} 待确认
+        </span>
         <button
           className="text-button"
           aria-label="下一待确认标注"
@@ -122,25 +123,6 @@ export function ReviewPanel({
         >
           下一待确认 <ChevronRight size={13} />
         </button>
-      </div>
-      <div className="source-tabs">
-        {(["all", "manual", "assist", "derived"] as const).map((v) => (
-          <button
-            key={v}
-            className={source === v ? "active" : ""}
-            disabled={disabled}
-            onClick={() => setSource(v)}
-          >
-            {
-              {
-                all: "全部",
-                manual: "人工",
-                assist: "AI 关键帧",
-                derived: "补帧",
-              }[v]
-            }
-          </button>
-        ))}
       </div>
       <div className="review-actions">
         <select
@@ -203,7 +185,13 @@ export function ReviewPanel({
                 </button>
                 <div className="row-review">
                   {a.review === "confirmed" ? (
-                    <Check className="green" size={15} aria-label="已确认" />
+                    source === "manual" &&
+                    !stageConfirmed &&
+                    !reviewedHumans.has(a.trackId) ? (
+                      <span className="manual-unreviewed">已标</span>
+                    ) : (
+                      <Check className="green" size={15} aria-label="已确认" />
+                    )
                   ) : a.review === "rejected" ? (
                     <button
                       aria-label={`恢复对象 ${a.trackId} 帧 ${a.frame}`}
@@ -309,6 +297,6 @@ export function ReviewPanel({
           </div>
         </Modal>
       )}
-    </section>
+    </div>
   );
 }

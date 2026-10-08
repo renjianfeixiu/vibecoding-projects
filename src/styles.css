@@ -2546,3 +2546,174 @@ summary span {
     padding: 5px 7px;
   }
 }
+
+/* The generation controls and their review live in the same ordered panel. */
+.review-workflow {
+  padding: 18px;
+}
+.review-workflow .panel-heading {
+  margin-bottom: 14px;
+}
+.review-steps {
+  display: flex;
+  gap: 6px;
+  padding: 0;
+  margin: 0 0 16px;
+  list-style: none;
+}
+.review-steps > li {
+  flex: 1;
+  min-width: 0;
+}
+.review-steps button {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 88px;
+  padding: 10px 3px;
+  border: 1px solid #e5ebf4;
+  border-radius: 12px;
+  background: #f8faff;
+  color: #7c8da6;
+  font-size: 12px;
+}
+.review-steps button > i {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #e9eef8;
+  font-style: normal;
+  font-size: 11px;
+}
+.review-steps button > small {
+  font-size: 10px;
+  color: #8e9db3;
+}
+.review-steps button.active {
+  background: #edf4ff;
+  border-color: #99b8f9;
+  color: var(--blue);
+}
+.review-steps button.active > i {
+  background: var(--blue);
+  color: #fff;
+}
+.review-steps button.complete > i {
+  background: #e4f5ee;
+  color: #23906b;
+}
+.review-steps button:disabled {
+  opacity: 0.65;
+}
+.workflow-scope {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #8192a9;
+}
+.workflow-scope select {
+  width: 122px;
+  min-width: 0;
+  height: 32px;
+  font-size: 12px;
+}
+.review-stage-heading {
+  margin: 18px 0 12px;
+}
+.review-stage-heading h3 {
+  font-size: 14px;
+  font-weight: 550;
+  color: #425b7f;
+}
+.review-stage-heading p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.65;
+  color: #8a9cb4;
+}
+.stage-generation {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eaf0f7;
+}
+.stage-generation > .button {
+  border-radius: 10px;
+}
+.stage-generation > .button > small {
+  margin-left: auto;
+  font-size: 10px;
+  color: #8a9db6;
+}
+.stage-review .review-scope {
+  padding: 0 0 8px;
+}
+.stage-review .review-scope > span {
+  font-size: 11px;
+  color: #8a9cb3;
+}
+.stage-review .review-actions {
+  padding: 4px 0 10px;
+  gap: 8px;
+}
+.stage-review .frame-list {
+  min-height: 76px;
+  max-height: 220px;
+  padding: 0;
+}
+.stage-review .empty-frames {
+  min-height: 76px;
+}
+.manual-unreviewed {
+  font-size: 10px;
+  color: #8da1bd;
+}
+.workflow-next {
+  margin-top: 14px;
+  font-size: 12px;
+  gap: 8px;
+  border-radius: 10px;
+}
+.workflow-next > span {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+.skip-ai {
+  display: block;
+  margin: 12px auto 0;
+  font-size: 11px;
+}
+.workflow-result {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  margin-top: 14px;
+  background: #eff6ff;
+  color: #5b7ba7;
+  border-radius: 9px;
+}
+.object-category-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 12px 0;
+  color: #8a9ab0;
+  font-size: 12px;
+}
+.object-category-field select {
+  height: 34px;
+}
+.workflow-progress-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8faff;
+  padding: 4px 0 1px;
+  border-radius: 10px;
+}
