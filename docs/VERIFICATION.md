@@ -138,7 +138,7 @@
 - 生产构建仍为 `index-C6yVGOG0.js` 和 `index-DeD8qnJL.css`，应用源码没有因同步产生额外修改。
 - `npm run smoke` 实际启动 `npm start`，在临时端口 55688 检查首页与应用入口通过；测试服务随后关闭，原有 5178 服务保留。
 - README 补齐 Windows `npm.cmd ci`、`npm.cmd start`、后续 `git pull --ff-only` 更新步骤，以及 Git/Node 的安装命令。版本记录和路线图同步已实现功能，保留真实模型、视频时间戳和外部格式验证的边界。
-- 全仓库格式检查与 `git diff --check` 通过。Windows、Mac、Linux 的安装/测试/构建/启动结果以本次提交的 [GitHub Actions](https://github.com/renjianfeixiu/vibecoding-projects/actions/workflows/ci.yml) 为准；CI 启动检查不等同于真实 Windows 浏览器视频操作验收。
+- 全仓库格式检查与 `git diff --check` 通过。Windows、Mac、Linux 的安装/测试/构建/启动结果以本次提交的 [GitHub Actions](https://github.com/renjianfeixiu/frameflow/actions/workflows/ci.yml) 为准；CI 启动检查不等同于真实 Windows 浏览器视频操作验收。
 
 ## v0.6.1：克隆后直接打开（2026-10-09）
 

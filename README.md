@@ -11,16 +11,16 @@
 Windows PowerShell：
 
 ```powershell
-git clone --branch main https://github.com/renjianfeixiu/vibecoding-projects.git
-cd vibecoding-projects
+git clone --branch main https://github.com/renjianfeixiu/frameflow.git
+cd frameflow
 Start-Process ".\打开帧序.html"
 ```
 
 Mac 终端：
 
 ```sh
-git clone https://github.com/renjianfeixiu/vibecoding-projects.git
-cd vibecoding-projects
+git clone https://github.com/renjianfeixiu/frameflow.git
+cd frameflow
 open "打开帧序.html"
 ```
 
@@ -65,7 +65,7 @@ npm run preview
 
 - [产品迭代路线](docs/ROADMAP.md)：已完成操作与顺序复核修订，后续验证数据可靠性、模型辅助与真实场景试用。
 - [GitHub 分类与工作流](docs/GITHUB_WORKFLOW.md)：Issue、标签、里程碑、分支、PR 和 Release 怎么配合。
-- [参与开发](CONTRIBUTING.md) · [版本记录](CHANGELOG.md) · [跨平台检查](https://github.com/renjianfeixiu/vibecoding-projects/actions/workflows/ci.yml)。
+- [参与开发](CONTRIBUTING.md) · [版本记录](CHANGELOG.md) · [跨平台检查](https://github.com/renjianfeixiu/frameflow/actions/workflows/ci.yml)。
 
 当前版本为 **v0.6.1**：新增克隆后直接打开的独立网页，包含第二步类别与对象管理、多对象批处理、同一帧同类别连续画框，以及「人工复核 → AI 生成与复核 → 补帧与复核」的顺序流程。保留 v0.6 的标注与复核逻辑，内置算法随便携网页一起打包。
 
