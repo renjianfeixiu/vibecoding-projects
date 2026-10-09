@@ -66,7 +66,11 @@ export function useProject() {
     if (!current.current) return true;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(current.current));
-      setSaveStatus("已保存到本机");
+      setSaveStatus(
+        window.location.protocol === "file:"
+          ? "已暂存到浏览器"
+          : "已保存到本机",
+      );
       return true;
     } catch {
       setSaveStatus("保存失败，请下载工程");

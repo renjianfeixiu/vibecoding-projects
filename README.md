@@ -4,67 +4,62 @@
 
 先阅读 [产品大纲](docs/PRODUCT_OUTLINE.md) 和 [可用性修订清单](docs/USABILITY_AUDIT.md)。当前实现矩形框，「AI 关键帧标注」采用本地模板匹配；真实多模态模型通过后续插件接入。
 
-## 下载并运行（Mac / Windows 共用）
+## 下载后直接打开
 
-需要先安装 **Git** 和 **Node.js ≥22.18**，推荐 Node 24 LTS。Node 安装包自带 npm：[Node.js 下载](https://nodejs.org/en/download)、[Git 下载](https://git-scm.com/downloads)。浏览器推荐当前 Chrome、Edge 或 Safari。
+**普通使用无需 Node、npm、Codex 或浏览器插件。** `打开帧序.html` 是随仓库提供的完整应用，已内嵌 React、图标、ZIP 库及全部内置标注模块，下载完成后可离线使用。使用 Chrome 或 Edge 打开。
 
-Mac 终端可以执行：
-
-```sh
-git clone https://github.com/renjianfeixiu/vibecoding-projects.git
-cd vibecoding-projects
-npm ci
-npm start
-```
-
-Windows PowerShell 或命令提示符使用以下命令。显式调用 `npm.cmd`，无需修改 PowerShell 执行策略：
+Windows PowerShell：
 
 ```powershell
 git clone --branch main https://github.com/renjianfeixiu/vibecoding-projects.git
 cd vibecoding-projects
-npm.cmd ci
-npm.cmd start
+Start-Process ".\打开帧序.html"
 ```
 
-尚未安装 Git 和 Node 的 Windows 用户，可先执行以下安装命令，完成后关闭并重新打开终端，再执行上面的下载和启动命令：
+Mac 终端：
 
-```powershell
-winget install --id Git.Git -e --source winget
-winget install --id OpenJS.NodeJS.LTS -e --source winget
+```sh
+git clone https://github.com/renjianfeixiu/vibecoding-projects.git
+cd vibecoding-projects
+open "打开帧序.html"
 ```
 
-若系统没有 `winget`，使用上面的官方下载链接安装。浏览器将打开 `http://127.0.0.1:5178/`。终端保持运行，用 `Ctrl+C` 停止。
+也可以双击 `打开帧序.html`、Windows 的 `启动帧序.cmd` 或 Mac 的 `启动帧序.command`。这些启动入口直接打开网页，不安装依赖、不启动本地服务。未安装 Git 时，在仓库页面点击 **Code → Download ZIP**，解压后双击网页即可。
 
-想固定使用这次发布的版本，可在安装前运行 `git switch --detach v0.6.0-github`。日后回到最新版用 `git switch main`，确认本地改动已保存后再 `git pull --ff-only`。
-
-Windows 用户后续更新，在项目目录执行以下命令；若服务正在运行，先按 `Ctrl+C` 停止：
+后续更新，先用「保存工程」下载备份并关闭旧页面，然后在项目目录执行：
 
 ```powershell
-git switch main
 git pull --ff-only
+Start-Process ".\打开帧序.html"
+```
+
+Mac 更新同样使用 `git pull --ff-only`，再执行 `open "打开帧序.html"`。固定使用本次发布版可以运行 `git switch --detach v0.6.1-github`；回到最新版用 `git switch main`。
+
+### 内置能力与工程保存
+
+- 模板匹配 AI 关键帧、双向光流、线性插帧、20 种导出、文件回导与规则审查均已包含，普通使用无需手动启用或下载插件。
+- 这里的「插件」指源码中的可扩展模块。真实多模态/SAM 服务尚未部署，不能把模板匹配当作已包含的大模型；后续接入真实模型时才会涉及模型权重或服务配置。
+- 自动保存只保存当前浏览器中的工程元数据。直接打开文件时，缓存行为与浏览器、文件路径有关，移动网页或清理浏览器后可能无法恢复。重要任务请点击「保存工程」下载 `.frameflow.json`，原视频或图像单独保留。
+- 恢复工程后如果没有原视频，重新选择同一素材；工程备份不包含原媒体。
+- 网页打不开时，用 Chrome/Edge 的「打开文件」选择它。浏览器支持的媒体编码仍有区别，无法读取的素材可转为兼容的 MP4/WebM 或 PNG/JPG。
+
+### 修改源码时的开发入口
+
+只有开发、运行测试或重新打包时才需要 **Node.js ≥22.18**。安装依赖会依据 `package-lock.json` 一次安装全部源码依赖，不需要另装这些内置插件。
+
+```powershell
 npm.cmd ci
 npm.cmd start
 ```
 
-下载后也可以双击 Mac 的 `启动帧序.command` 或 Windows 的 `启动帧序.cmd`。它们会检查 Node，首次安装依赖并启动；首次安装需要网络。两种入口使用同一份前端源码，不需要分成 Mac/Windows 两个应用版本。
-
-常见问题：
-
-- 找不到 `git` / `node` / `npm`：完成对应安装后重新打开终端。
-- 5178 端口被占用：停止之前启动的帧序，或运行 `npm start -- --port 5179` 并访问提示的新地址。
-- 自动打开浏览器失败：手动访问终端显示的地址。
-- 恢复工程后没有原视频：重新选择同一素材；工程 JSON 保存标注元数据，不包含原视频。
-
-安装好依赖后，本地标注和规则审查不调用云服务。工程元数据保存于同一浏览器的本地存储；重要任务也应下载工程备份。
-
-生产构建与本地预览：
+Mac/Linux 使用 `npm ci`、`npm start`。开发服务位于 `http://127.0.0.1:5178/`，终端保持运行，`Ctrl+C` 停止。已有服务占用端口时，可用 `npm start -- --port 5179`。生产构建：
 
 ```sh
 npm run build
 npm run preview
 ```
 
-这仍是本地应用，不是公开部署服务。当前没有 `.app` / `.exe` 安装包。
+`npm run build` 同时更新普通网页构建和独立的 `打开帧序.html`；独立网页与源码一致性、离线视频标注/导出都由 Windows、Mac、Linux CI 检查。当前提供网页便携版，没有 `.exe` / `.app` 安装包。
 
 ## 项目安排
 
@@ -72,7 +67,7 @@ npm run preview
 - [GitHub 分类与工作流](docs/GITHUB_WORKFLOW.md)：Issue、标签、里程碑、分支、PR 和 Release 怎么配合。
 - [参与开发](CONTRIBUTING.md) · [版本记录](CHANGELOG.md) · [跨平台检查](https://github.com/renjianfeixiu/vibecoding-projects/actions/workflows/ci.yml)。
 
-当前版本为 **v0.6.0**：包含第二步类别与对象管理、多对象批处理、同一帧同类别连续画框，以及「人工复核 → AI 生成与复核 → 补帧与复核」的顺序流程。最新应用源码与本地已验收的 `0cecaef` 保持一致，保留 GitHub 仓库已有的跨平台启动、测试及项目管理文件。
+当前版本为 **v0.6.1**：新增克隆后直接打开的独立网页，包含第二步类别与对象管理、多对象批处理、同一帧同类别连续画框，以及「人工复核 → AI 生成与复核 → 补帧与复核」的顺序流程。保留 v0.6 的标注与复核逻辑，内置算法随便携网页一起打包。
 
 ![帧序标注工作台（v0.4 发布截图，最新操作流程见下文）](docs/images/workspace.png)
 
@@ -124,9 +119,13 @@ npm run preview
 ## 开发与扩展
 
 ```sh
+npm ci          # 开发前安装锁定依赖
 npm test        # 核心数据、质量状态、格式和图像跟踪检查
-npm run build  # TypeScript + 生产构建
-npm run smoke  # 实际启动并检查服务，然后关闭测试服务
+npm run build  # TypeScript + 生产构建 + 独立 HTML
+npm run smoke  # 实际启动并检查开发服务，然后关闭测试服务
+npx playwright install chromium --only-shell # 仅开发验收需要的浏览器
+npm run smoke:portable # 离线 file:// 实际操作验证
+npm run portable:check # 检查已提交的 HTML 与源码一致
 npm run format # 格式化源码
 ```
 
@@ -134,13 +133,14 @@ npm run format # 格式化源码
 
 ## 版本与回滚
 
-GitHub `main` 当前承载 v0.6.0 源码，本次发布标签为 `v0.6.0-github`，包含最新功能与跨平台工具。首个发布标签 `v0.4.0-demo` 保留。详见 [版本记录](CHANGELOG.md)。
+GitHub `main` 当前承载 v0.6.1，本次发布标签为 `v0.6.1-github`，包含独立网页与跨平台离线验收。首个发布标签 `v0.4.0-demo` 保留。详见 [版本记录](CHANGELOG.md)。
 
 仓库原内容已保存在 `codex/archive-before-frameflow-20261007` 分支；本次在已有历史上提交替换，不使用强制推送。
 
 - `v0.4.0-demo`：类别删除与迁移、时间线建议点、人工最大间隔及统一 AI 点位计划，首个跨平台发布快照。
 - `v0.6.0-github`：类别/对象管理、多对象批处理、安全覆盖、四角调整、复制粘贴、自动保存保护；同帧连续画框创建同类独立对象；人工 → AI → 补帧顺序复核、任务前置校验、编辑回退与工程阶段恢复。
+- `v0.6.1-github`：全部运行依赖内嵌为独立网页，克隆或下载后双击即可离线使用；跨平台 CI 验证网页与源码同步，并实际操作视频标注、光流、导出和工程恢复。
 
-只查看本次发布版：`git switch --detach v0.6.0-github`；回到最新版：`git switch main`。保留历史并撤销某次改动可使用 `git revert <提交号>`。
+只查看本次发布版：`git switch --detach v0.6.1-github`；回到最新版：`git switch main`。保留历史并撤销某次改动可使用 `git revert <提交号>`。
 
 [产品大纲](docs/PRODUCT_OUTLINE.md) · [可用性修订](docs/USABILITY_AUDIT.md) · [插件说明](docs/PLUGINS.md) · [验收记录](docs/VERIFICATION.md) · [软著申请大纲](docs/SOFTWARE_COPYRIGHT_OUTLINE.md)

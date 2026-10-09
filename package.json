@@ -1,20 +1,23 @@
 {
   "name": "frameflow-demo",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5178 --strictPort",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/build-portable.mjs",
+    "build:portable": "tsc --noEmit && node scripts/build-portable.mjs",
+    "portable:check": "node scripts/build-portable.mjs --check",
     "preview": "vite preview --host 127.0.0.1 --port 5178 --strictPort",
     "test": "node scripts/test.mjs",
     "format": "prettier --write src tests scripts docs .github README.md CONTRIBUTING.md CHANGELOG.md package.json package-lock.json tsconfig.json vite.config.ts index.html",
     "start": "vite --host 127.0.0.1 --port 5178 --strictPort --open",
     "format:check": "prettier --check src tests scripts docs .github README.md CONTRIBUTING.md CHANGELOG.md package.json package-lock.json tsconfig.json vite.config.ts index.html",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:portable": "node scripts/smoke-portable.mjs"
   },
   "dependencies": {
     "fflate": "0.8.3",
@@ -26,6 +29,7 @@
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
     "@vitejs/plugin-react": "4.6.0",
+    "playwright": "1.64.0",
     "prettier": "3.6.2",
     "typescript": "5.8.3",
     "vite": "7.3.7"

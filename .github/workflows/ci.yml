@@ -39,7 +39,20 @@ jobs:
         run: npm test
       - name: Typecheck and build
         run: npm run build
+      - name: Verify the committed portable HTML
+        run: git diff --exit-code -- 打开帧序.html
+      - name: Install the test browser
+        run: npx --no-install playwright install --with-deps chromium --only-shell
+      - name: Test offline file-based annotation and export
+        run: npm run smoke:portable
       - name: Smoke-test the startup command
         run: npm run smoke
       - name: Check formatting
         run: npm run format:check
+      - name: Save browser verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-${{ matrix.os }}
+          path: artifacts/portable-smoke
+          if-no-files-found: ignore

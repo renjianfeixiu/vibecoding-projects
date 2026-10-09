@@ -864,7 +864,10 @@ export default function App() {
         </nav>
         <div className="header-right">
           {project && (
-            <span className="save-state">
+            <span
+              className="save-state"
+              title="自动保存只在当前浏览器有效；重要标注请用“保存工程”下载备份，原素材单独保留。"
+            >
               <span className="dot" />
               {state.saveStatus}
             </span>
@@ -1053,7 +1056,7 @@ export default function App() {
           <ShieldCheck size={13} /> 本地保存
         </span>
         <span>
-          <Github size={13} /> v0.6.0
+          <Github size={13} /> v0.6.1
         </span>
       </footer>
       {toast && (

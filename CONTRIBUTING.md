@@ -1,13 +1,13 @@
 # 如何参与帧序
 
-先按 [README](README.md) 启动应用。当前重点是让矩形框视频标注闭环稳定易用，功能安排见 [迭代路线](docs/ROADMAP.md)。
+先按 [README](README.md) 体验应用。开发前安装 Node.js ≥22.18，运行 `npm ci`、`npm start`；开发依赖由锁文件统一安装。当前重点是让矩形框视频标注闭环稳定易用，功能安排见 [迭代路线](docs/ROADMAP.md)。
 
 ## 一次改动的流程
 
 1. 用 Issue 写清遇到的问题、复现步骤和验收条件。
 2. 从最新 `main` 创建一个分支，例如 `codex/label-editor`。
 3. 一次只完成一个可验收的问题；不要顺便重写不相关模块。
-4. 运行 `npm test`、`npm run build`、`npm run format:check`、`npm run smoke`；有界面改动时实际操作验证。
+4. 运行 `npm test`、`npm run build`、`npm run format:check`、`npm run smoke`。首次运行离线验收需 `npx playwright install chromium --only-shell`，然后执行 `npm run smoke:portable`。提交同步生成的 `打开帧序.html`，CI 会核对它与源码一致；有界面改动时实际操作验证。
 5. 创建 Pull Request，说明前后行为、验证结果和已知限制。
 6. CI 通过后审阅合并；按版本整理 Release。
 
